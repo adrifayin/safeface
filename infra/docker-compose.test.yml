@@ -1,0 +1,46 @@
+# Test stack: PostgreSQL 16 + the backend test image, on an internal network
+# with no internet route (the network-isolation test relies on this).
+#   docker compose -f infra/docker-compose.test.yml run --rm tests
+name: safeface-test
+
+networks:
+  testnet:
+    internal: true
+
+services:
+  postgres:
+    image: postgres:16.6-bookworm
+    environment:
+      POSTGRES_PASSWORD: test
+      SAFEFACE_OWNER_PASSWORD: test
+      SAFEFACE_APP_PASSWORD: test
+      KEYCLOAK_DB_PASSWORD: test
+    volumes:
+      - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
+    tmpfs: ["/var/lib/postgresql/data"]
+    networks: [testnet]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d safeface"]
+      interval: 2s
+      retries: 30
+
+  tests:
+    build: {context: ../backend, target: test}
+    image: safeface/test:dev
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    environment:
+      SAFEFACE_DATABASE_URL: postgresql+psycopg://safeface_app:test@postgres:5432/safeface
+      SAFEFACE_DATABASE_OWNER_URL: postgresql+psycopg://safeface_owner:test@postgres:5432/safeface
+      PYTHONDONTWRITEBYTECODE: "1"
+      SAFEFACE_EXPECT_NO_NETWORK: "1"
+    volumes:
+      - ../backend/app:/app/app:ro
+      - ../backend/tests:/app/tests
+      - ../scripts:/app/scripts:ro
+    tmpfs: ["/tmp:size=1g", "/work:uid=10001,gid=10001", "/app/.pytest_cache:uid=10001,gid=10001"]
+    networks: [testnet]
+    depends_on:
+      postgres: {condition: service_healthy}
+    command: ["pytest", "-q", "-p", "no:cacheprovider"]

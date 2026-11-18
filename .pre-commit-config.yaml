@@ -1,0 +1,21 @@
+# Local hooks only (no network fetch of hook repos); run inside the test image:
+#   docker run --rm -v "$PWD/backend:/app" -w /app safeface/test:dev pre-commit run --all-files
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff
+        entry: ruff check
+        language: system
+        types: [python]
+        files: ^backend/
+      - id: mypy
+        name: mypy (strict)
+        entry: sh -c "cd backend && mypy app"
+        language: system
+        pass_filenames: false
+        files: ^backend/app/
+      - id: no-secrets
+        name: refuse committing .env / keys
+        entry: sh -c 'for f in "$@"; do case "$f" in *.env|*.key|*.pem) echo "refusing $f"; exit 1;; esac; done' --
+        language: system

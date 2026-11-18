@@ -1,0 +1,17 @@
+# GPU override: gives worker-gpu the NVIDIA GPU (needs NVIDIA Container Toolkit)
+# and the CUDA build of PyTorch.
+services:
+  worker-gpu:
+    build:
+      context: ../backend
+      target: worker
+      args:
+        TORCH_INDEX: https://download.pytorch.org/whl/cu124
+    image: safeface/worker-gpu:dev
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

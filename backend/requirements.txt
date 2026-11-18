@@ -1,0 +1,25 @@
+# API + worker runtime. Every version is pinned; see docs/SUPPLY_CHAIN.md.
+# None of these packages phone home. Install from the offline wheel bundle.
+fastapi==0.115.6
+starlette==0.41.3
+pydantic==2.10.4
+pydantic-settings==2.7.1
+uvicorn==0.34.0
+SQLAlchemy==2.0.36
+alembic==1.14.0
+psycopg[binary]==3.2.3
+celery==5.4.0
+redis==5.2.1
+boto3==1.35.90
+botocore==1.35.90
+PyJWT[crypto]==2.10.1
+PyYAML==6.0.2
+Jinja2==3.1.5
+weasyprint==63.1
+numpy==1.26.4
+scipy==1.14.1
+scikit-image==0.24.0
+opencv-python-headless==4.10.0.84
+Pillow==11.0.0
+pillow-heif==0.21.0
+PyWavelets==1.7.0

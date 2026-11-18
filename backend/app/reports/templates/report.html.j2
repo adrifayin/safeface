@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SafeFace report {{ case.case_no }} v{{ version }}</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 20mm 16mm;
+    @bottom-left { content: "SafeFace {{ app_version }} · Case {{ case.case_no }} · Report v{{ version }} ({{ status|upper }})"; font-size: 8pt; color: #555; }
+    @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 8pt; color: #555; } }
+  body { font-family: "DejaVu Sans", sans-serif; font-size: 9.5pt; color: #111; line-height: 1.4; }
+  h1 { font-size: 16pt; margin: 0 0 4pt; } h2 { font-size: 12.5pt; border-bottom: 1px solid #999; padding-bottom: 2pt; margin-top: 16pt; }
+  h3 { font-size: 11pt; margin: 12pt 0 4pt; } h4 { font-size: 10pt; margin: 10pt 0 3pt; }
+  table { border-collapse: collapse; width: 100%; margin: 4pt 0 8pt; }
+  th, td { border: 1px solid #bbb; padding: 3pt 5pt; text-align: left; vertical-align: top; }
+  th { background: #eee; width: 28%; } .mono { font-family: "DejaVu Sans Mono", monospace; font-size: 8pt; word-break: break-all; }
+  .box { border: 1.5px solid #333; padding: 6pt 8pt; margin: 8pt 0; background: #f6f6f6; }
+  .limit { border-left: 3px solid #b45309; padding: 3pt 6pt; background: #fff7ed; margin: 4pt 0; }
+  .finding { page-break-inside: avoid; border: 1px solid #ccc; padding: 6pt 8pt; margin: 8pt 0; }
+  .tag { display: inline-block; border: 1px solid #555; padding: 0 4pt; font-size: 8pt; margin-left: 4pt; }
+  figure { margin: 6pt 0; } figure img { max-width: 100%; max-height: 90mm; border: 1px solid #999; }
+  figcaption { font-size: 8pt; color: #333; }
+  .watermark { position: fixed; top: 40%; left: 10%; font-size: 70pt; color: rgba(200,0,0,0.12); transform: rotate(-30deg); }
+  .sig { height: 28mm; border-bottom: 1px solid #000; }
+</style>
+</head>
+<body>
+{% if status != "final" %}<div class="watermark">DRAFT{% if preview %} PREVIEW{% endif %}</div>{% endif %}
+
+<h1>Forensic image authentication report</h1>
+<div>Case {{ case.case_no }} · Report version {{ version }} · Status: <strong>{{ status|upper }}</strong> · Generated {{ generated_at }}</div>
+
+<div class="box"><strong>Statement on automated scores.</strong> {{ indicator_statement }}</div>
+
+<h2>1. Case details</h2>
+<table>
+  <tr><th>Case number</th><td>{{ case.case_no }}</td></tr>
+  <tr><th>FIR number</th><td>{{ case.fir_no or "—" }}</td></tr>
+  <tr><th>Crime head</th><td>{{ case.crime_head }}</td></tr>
+  <tr><th>Investigating officer</th><td>{{ case.investigating_officer }}</td></tr>
+  <tr><th>Case created by</th><td>{{ investigator }}</td></tr>
+  <tr><th>Assigned examiner</th><td>{{ examiner or "—" }}</td></tr>
+  <tr><th>Description / request</th><td>{{ case.description or "—" }}</td></tr>
+</table>
+
+<h2>2. Evidence received and integrity</h2>
+<p>Each original was hashed on ingest, stored in write-once (object-locked) storage, and re-hashed from storage immediately before this report was generated. All analysis was performed on working copies whose hashes were verified before each analysis.</p>
+{% for e in evidence %}
+<table>
+  <tr><th>Item</th><td>{{ e.filename }} ({{ e.kind }}, {{ e.detected_mime }}, {{ e.size_bytes }} bytes)</td></tr>
+  <tr><th>Evidence ID</th><td class="mono">{{ e.evidence_id }}</td></tr>
+  <tr><th>SHA-256</th><td class="mono">{{ e.sha256 }}</td></tr>
+  <tr><th>MD5</th><td class="mono">{{ e.md5 }}</td></tr>
+  <tr><th>Ingested</th><td>{{ e.ingested_at }} via {{ e.upload_method }}</td></tr>
+  <tr><th>Hash re-verified</th><td>{{ e.verified_at }} — {% if e.verified_ok %}MATCH{% else %}<strong>NOT VERIFIED</strong>{% endif %}</td></tr>
+  <tr><th>Source</th><td>{{ e.source_platform or "—" }}{% if e.source_url %} · {{ e.source_url }}{% endif %}{% if e.source_device %} · device: {{ e.source_device }}{% endif %}</td></tr>
+  <tr><th>Collected</th><td>{{ e.collected_by or "—" }}{% if e.collected_at %} at {{ e.collected_at }}{% endif %}{% if e.complainant %} · complainant: {{ e.complainant }}{% endif %}</td></tr>
+</table>
+{% endfor %}
+
+<h2>3. Examination environment</h2>
+<table>
+  <tr><th>Software</th><td>SafeFace Forensic Workbench {{ app_version }} ({{ deployment }})</td></tr>
+  <tr><th>API container image</th><td class="mono">{{ api_image_digest }}</td></tr>
+  {% for env in environments %}
+  <tr><th>Analysis worker {{ loop.index }}</th><td>
+    host {{ env.host }} · image <span class="mono">{{ env.container_image_digest }}</span><br>
+    GPU: {{ env.gpu }} · CPU: {{ env.cpu }} ({{ env.cpu_count }} cores) · Python {{ env.python }}<br>
+    numpy {{ env.numpy }}{% if env.cv2 %} · OpenCV {{ env.cv2 }}{% endif %}{% if env.torch %} · PyTorch {{ env.torch }}{% endif %}{% if env.PIL %} · Pillow {{ env.PIL }}{% endif %}
+  </td></tr>
+  {% endfor %}
+</table>
+
+{% for sec in sections %}
+<h2>4.{{ loop.index }} Findings — {{ sec.item.original_filename }}</h2>
+<p class="mono">Evidence {{ sec.item.id }} · SHA-256 {{ sec.item.sha256 }}{% if sec.references %} · compared with reference(s): {{ sec.references|join(", ") }}{% endif %}</p>
+{% for g in sec.groups %}
+<h3>{{ g.label }}</h3>
+{% for f in g.findings %}
+<div class="finding">
+  <h4>{{ f.name }} <span class="tag">{{ f.module_id }} v{{ f.module_version }}</span><span class="tag">Tier {{ f.tier }}</span>{% if f.triage_indicator %}<span class="tag">TRIAGE INDICATOR</span>{% endif %}</h4>
+  <table>
+    <tr><th>Method</th><td>{{ f.method }}</td></tr>
+    <tr><th>Parameters</th><td class="mono">{{ f.params|tojson }}</td></tr>
+    {% if f.weights %}<tr><th>Model weights (SHA-256)</th><td class="mono">{% for k, v in f.weights.items() %}{{ k }}: {{ v }}<br>{% endfor %}</td></tr>{% endif %}
+    <tr><th>Run</th><td>{{ f.finished_at }} · {{ f.runtime }} s · finding <span class="mono">{{ f.id }}</span></td></tr>
+    <tr><th>Result</th><td>{{ f.summary }}</td></tr>
+  </table>
+  <table>
+    <tr><th>Score</th><th style="width:16%">Value</th><th style="width:14%">Range</th><th style="width:42%">Meaning</th></tr>
+    {% for s in f.scores %}
+    <tr><td>{{ s.name }}</td><td>{{ s.display }}{% if s.unit %} {{ s.unit }}{% endif %}</td><td>{% if s.range %}{{ s.range[0] }} – {{ s.range[1] }}{% else %}—{% endif %}</td><td>{{ s.meaning }}</td></tr>
+    {% endfor %}
+  </table>
+  {% for fig in f.figures %}
+  <figure><img src="{{ fig.src }}" alt="{{ fig.name }}"><figcaption>Figure: {{ fig.description }} ({{ fig.name }}, SHA-256 <span class="mono">{{ fig.sha256 }}</span>)</figcaption></figure>
+  {% endfor %}
+  <div class="limit"><strong>Limitations.</strong> {{ f.limitations }}</div>
+  {% for n in f.notes %}<p><strong>Examiner note</strong> ({{ n.author }}, {{ n.created_at|iso }}): {{ n.text }}</p>{% endfor %}
+</div>
+{% endfor %}
+{% endfor %}
+
+{% if sec.general_notes %}
+<h3>Examiner notes</h3>
+{% for n in sec.general_notes %}<p><strong>{{ n.author }}</strong>, {{ n.created_at|iso }}: {{ n.text }}</p>{% endfor %}
+{% endif %}
+
+<h3>Conclusion</h3>
+<p>Scale used: {{ scale|join(" · ") }}</p>
+{% if sec.conclusion %}
+<div class="box">
+  <strong>{{ sec.conclusion.label }}</strong><br>
+  {{ sec.conclusion.rationale }}<br>
+  <small>Recorded by {{ sec.conclusion.author }} at {{ sec.conclusion.created_at|iso }}.</small>
+</div>
+<p><strong>Supervisor approval:</strong>
+{% if sec.conclusion.approved_at %}approved by {{ sec.conclusion.approved_by }} at {{ sec.conclusion.approved_at|iso }}{% if sec.conclusion.approval_comment %} — "{{ sec.conclusion.approval_comment }}"{% endif %}
+{% else %}<strong>NOT APPROVED</strong> — this report is a draft.{% endif %}</p>
+{% else %}
+<p><strong>No conclusion recorded.</strong> This report is a draft.</p>
+{% endif %}
+{% endfor %}
+
+<h2>5. Signatures</h2>
+<table>
+  <tr><th>Examiner</th><td>{% for s in signed_by %}{{ s.examiner }}<br>{% endfor %}<div class="sig"></div>Signature, name, designation, date</td></tr>
+  <tr><th>Supervisor (approval)</th><td>{% for s in signed_by %}{{ s.supervisor }} ({{ s.approved_at }})<br>{% endfor %}<div class="sig"></div>Signature, name, designation, date</td></tr>
+</table>
+<p style="font-size:8pt">The SHA-256 of this PDF is recorded in the SafeFace report register and in the hash-chained audit log at the time of generation; it can be checked with any standard tool (e.g. <span class="mono">sha256sum</span>). Generated by {{ generated_by }}.</p>
+</body>
+</html>

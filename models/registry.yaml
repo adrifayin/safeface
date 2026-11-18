@@ -1,0 +1,89 @@
+# SafeFace model registry. Weights are NEVER downloaded at runtime.
+#
+# A file is used only if it is listed here WITH a sha256 and the file on disk
+# matches it (checked on every load). sha256: null means "not yet verified by
+# an administrator" and the file is refused.
+#
+# Install procedure and provenance of each hash: scripts/fetch_models.md.
+# Changing this file is a controlled change: record it in the change log and
+# re-sync (the API audits every registry change it observes on start-up).
+#
+# validation: filled from the Phase 4 benchmark runner. Until then each entry
+# says so explicitly; the UI and reports print this summary.
+
+weights:
+  - name: clip-vit-l14
+    module_id: image.aigen.univfd
+    version: openai-clip-ViT-L-14
+    path: clip/ViT-L-14.pt
+    # SHA-256 is part of OpenAI's official download URL for this file.
+    sha256: b8cca3fd41ae0c99ba7e8951adf17d267cdb84cd88be6f7c2e0eca1737a03836
+    licence: MIT (OpenAI CLIP)
+    source: https://openaipublic.azureedge.net/clip/models/b8cca3fd41ae0c99ba7e8951adf17d267cdb84cd88be6f7c2e0eca1737a03836/ViT-L-14.pt
+    validation:
+      status: not yet validated on the SafeFace test set (Phase 4)
+
+  - name: univfd-fc
+    module_id: image.aigen.univfd
+    version: univfd-030495a
+    path: univfd/fc_weights.pth
+    # sha256 of pretrained_weights/fc_weights.pth at commit 030495aea3300a8b54c0ec37ec7fe1dd7e63c619
+    sha256: 477100745713bcc957beb2b40859536859b6483fd6301b3b9293151b194c7847
+    licence: MIT (WisconsinAIVision/UniversalFakeDetect)
+    source: https://github.com/WisconsinAIVision/UniversalFakeDetect (pretrained_weights/fc_weights.pth)
+    validation:
+      status: not yet validated on the SafeFace test set (Phase 4)
+      published: "Ojha et al., CVPR 2023 (ProGAN-trained linear probe)"
+
+  - name: npr
+    module_id: image.aigen.npr
+    version: npr-781ced3
+    path: npr/NPR.pth
+    # sha256 of NPR.pth at commit 781ced3f7ca2cdc69ec9dd4ef27e8d0b3c07752a
+    sha256: 3939297e9399e0b992f87211610769d87d899de50d56da0204d6cbda2d483a53
+    licence: "NO LICENCE FILE upstream - treat as all rights reserved; research use pending permission"
+    source: https://github.com/chuangchuangtan/NPR-DeepfakeDetection (NPR.pth)
+    validation:
+      status: not yet validated on the SafeFace test set (Phase 4)
+
+  - name: trufor-src
+    module_id: image.trufor
+    version: trufor-ae54475
+    path: trufor/trufor-src-ae54475.tar
+    # git archive --format=tar ae54475df6f41a491d7615100feb19263dec13f7 test_docker/src
+    sha256: c3d1a7cc43cb243eca307724e7d64d2387ffd302972869f20c01ea5a590953eb
+    licence: GRIP-UNINA research licence - non-profit use only
+    source: https://github.com/grip-unina/TruFor
+    validation:
+      status: not yet validated on the SafeFace test set (Phase 4)
+
+  - name: trufor
+    module_id: image.trufor
+    version: trufor-weights-2023
+    path: trufor/trufor.pth.tar
+    # Not published upstream: the admin records it from the official zip (fetch_models.md).
+    sha256: null
+    licence: GRIP-UNINA research licence - non-profit use only
+    source: https://www.grip.unina.it/download/prog/TruFor/TruFor_weights.zip
+    validation:
+      status: not yet validated on the SafeFace test set (Phase 4)
+
+  - name: insightface-det-10g
+    module_id: image.source_match
+    version: buffalo_l
+    path: insightface/buffalo_l/det_10g.onnx
+    sha256: null
+    licence: "InsightFace pretrained models: non-commercial research use only"
+    source: https://github.com/deepinsight/insightface (model_zoo, buffalo_l.zip)
+    validation:
+      status: not yet validated on the SafeFace test set (Phase 4)
+
+  - name: insightface-w600k-r50
+    module_id: image.source_match
+    version: buffalo_l
+    path: insightface/buffalo_l/w600k_r50.onnx
+    sha256: null
+    licence: "InsightFace pretrained models: non-commercial research use only"
+    source: https://github.com/deepinsight/insightface (model_zoo, buffalo_l.zip)
+    validation:
+      status: not yet validated on the SafeFace test set (Phase 4)

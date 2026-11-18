@@ -1,0 +1,22 @@
+# Secrets and generated certificates — never commit.
+infra/.env
+infra/certs/out/
+*.key
+*.pem
+
+# Model weights are installed offline (scripts/fetch_models.md); only the registry is tracked.
+models/*
+!models/registry.yaml
+!models/README.md
+
+# Build / tool output
+__pycache__/
+*.pyc
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+offline-bundle/
