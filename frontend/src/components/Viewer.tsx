@@ -1,13 +1,16 @@
 /**
  * Zoomable evidence viewer (OpenSeadragon) with artefact heatmaps as toggleable
  * overlays and a per-overlay opacity slider. Images are fetched with the bearer
- * token and handed to OpenSeadragon as object URLs, so no credentials ever
- * appear in URLs. Overlays are stretched to the image width (same pixel grid).
+ * token and handed to OpenSeadragon as in-memory object URLs (no credentials in
+ * URLs, nothing cached). After 7 minutes the viewer and all its images are wiped
+ * from the browser. Overlays are stretched to the image width (same pixel grid).
  */
 import { useEffect, useRef, useState } from "react";
 import OpenSeadragon, { type TiledImage, type Viewer as OsdViewer } from "openseadragon";
 import { api } from "@/lib/api";
+import { useTimedMedia } from "@/lib/useTimedMedia";
 import type { ArtefactOut } from "@/lib/types";
+import { Expired } from "./Expired";
 import { Label, Slider, Switch } from "./ui";
 
 export interface Overlay {
@@ -16,41 +19,39 @@ export interface Overlay {
 }
 
 export function EvidenceViewer({ evidenceId, overlays }: { evidenceId: string; overlays: Overlay[] }) {
+  const media = useTimedMedia(`/evidence/${evidenceId}/content`, evidenceId);
   const el = useRef<HTMLDivElement>(null);
   const viewer = useRef<OsdViewer | null>(null);
   const items = useRef<Map<string, TiledImage>>(new Map());
   const urls = useRef<string[]>([]);
   const [active, setActive] = useState<Record<string, boolean>>({});
   const [opacity, setOpacity] = useState<Record<string, number>>({});
-  const [error, setError] = useState<string | null>(null);
+  const [overlayError, setOverlayError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    api.blobUrl(`/evidence/${evidenceId}/content`).then(({ url }) => {
-      if (cancelled || !el.current) return;
-      urls.current.push(url);
-      viewer.current = OpenSeadragon({
-        element: el.current,
-        // Nav buttons need image assets from a prefixUrl; we ship none (no CDN), so use
-        // mouse/touch: wheel or pinch to zoom, drag to pan, plus the mini-map navigator.
-        showNavigationControl: false,
-        showNavigator: true,
-        tileSources: { type: "image", url, buildPyramid: false },
-        gestureSettingsMouse: { clickToZoom: false },
-        crossOriginPolicy: false,
-      });
-    }).catch((e) => setError(String(e)));
+    if (!media.url || !el.current) return;
+    viewer.current = OpenSeadragon({
+      element: el.current,
+      // Nav buttons need image assets from a prefixUrl; we ship none (no CDN), so use
+      // mouse/touch: wheel or pinch to zoom, drag to pan, plus the mini-map navigator.
+      showNavigationControl: false,
+      showNavigator: true,
+      tileSources: { type: "image", url: media.url, buildPyramid: false },
+      gestureSettingsMouse: { clickToZoom: false },
+      crossOriginPolicy: false,
+    });
     return () => {
-      cancelled = true;
       viewer.current?.destroy();
       viewer.current = null;
       items.current.clear();
       urls.current.forEach((u) => URL.revokeObjectURL(u));
       urls.current = [];
+      setActive({});
     };
-  }, [evidenceId]);
+  }, [media.url]);
 
   async function toggle(o: Overlay, on: boolean) {
+    setOverlayError(null);
     setActive((a) => ({ ...a, [o.artefact.key]: on }));
     const v = viewer.current;
     if (!v) return;
@@ -61,14 +62,19 @@ export function EvidenceViewer({ evidenceId, overlays }: { evidenceId: string; o
       return;
     }
     if (on && !existing) {
-      const { url } = await api.blobUrl(`/artefacts/${o.artefact.key}`);
-      urls.current.push(url);
-      v.addTiledImage({
-        tileSource: { type: "image", url, buildPyramid: false },
-        x: 0, y: 0, width: 1,
-        opacity: opacity[o.artefact.key] ?? 0.6,
-        success: (e) => items.current.set(o.artefact.key, e.item),
-      });
+      try {
+        const { url } = await api.blobUrl(`/artefacts/${o.artefact.key}`);
+        urls.current.push(url);
+        v.addTiledImage({
+          tileSource: { type: "image", url, buildPyramid: false },
+          x: 0, y: 0, width: 1,
+          opacity: opacity[o.artefact.key] ?? 0.6,
+          success: (e) => items.current.set(o.artefact.key, e.item),
+        });
+      } catch {
+        setActive((a) => ({ ...a, [o.artefact.key]: false }));
+        setOverlayError("This heatmap was deleted after the 7-minute retention period. Re-run the check to regenerate it.");
+      }
     }
   }
 
@@ -77,9 +83,10 @@ export function EvidenceViewer({ evidenceId, overlays }: { evidenceId: string; o
     items.current.get(key)?.setOpacity(value);
   }
 
+  if (media.expired) return <Expired onReload={media.reload} label="the image" />;
   return (
     <div>
-      {error && <div className="mb-2 text-sm text-red-700">Could not load image: {error}</div>}
+      {media.error && <div className="mb-2 text-sm text-red-700">Could not load image: {media.error}</div>}
       <div ref={el} className="h-[560px] w-full rounded-md border border-slate-300 bg-slate-800" data-testid="osd-viewer" />
       {overlays.length > 0 && (
         <div className="mt-3 space-y-2">
@@ -93,19 +100,19 @@ export function EvidenceViewer({ evidenceId, overlays }: { evidenceId: string; o
                       onValueChange={([v]) => changeOpacity(o.artefact.key, v)} disabled={!active[o.artefact.key]} />
             </div>
           ))}
+          {overlayError && <p className="text-xs text-amber-800">{overlayError}</p>}
         </div>
       )}
     </div>
   );
 }
 
-/** Stand-alone artefact image (e.g. side-by-side), loaded with auth. */
+/** Stand-alone artefact image (e.g. side-by-side, top frames), in memory for at most 7 minutes. */
 export function ArtefactImage({ artefact }: { artefact: ArtefactOut }) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => {
-    let u: string | null = null;
-    api.blobUrl(`/artefacts/${artefact.key}`).then((r) => setUrl((u = r.url)));
-    return () => { if (u) URL.revokeObjectURL(u); };
-  }, [artefact.key]);
-  return url ? <img src={url} alt={artefact.description} className="max-w-full rounded border" /> : <div className="text-sm">Loading…</div>;
+  const media = useTimedMedia(`/artefacts/${artefact.key}`);
+  if (media.expired) return <Expired onReload={media.reload} label="this figure" />;
+  if (media.error) {
+    return <p className="text-xs text-amber-800">Figure not available (deleted after the 7-minute retention period; its SHA-256 is kept). Re-run the check to regenerate it.</p>;
+  }
+  return media.url ? <img src={media.url} alt={artefact.description} className="max-w-full rounded border" /> : <div className="text-sm">Loading…</div>;
 }

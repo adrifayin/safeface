@@ -112,6 +112,11 @@ test("upload → triage → conclusion → approval → verified PDF", async ({ 
   await esha.goto(caseUrl);
   await esha.getByTestId("evidence-scene_edited.jpg").getByRole("link", { name: "Open workbench" }).click();
   await expect(esha.getByTestId("no-verdict-notice")).toContainText("not determinations");
+  // Summary tab first: integrity, screening and the results chart.
+  await expect(esha.getByTestId("integrity-status")).toContainText("Verified");
+  await expect(esha.getByTestId("screening-headline")).toBeVisible();
+  await expect(esha.getByTestId("screening-caveat")).toContainText("NOT A FINDING");
+  await esha.getByTestId("tab-findings").click();
   await expect(esha.getByTestId("module-image.ela").getByText("succeeded")).toBeVisible({ timeout: 120_000 });
   await expect(esha.getByTestId("module-integrity.hash").getByText("sha256_match")).toBeVisible();
   // Evidence is blurred until explicitly revealed.
@@ -146,6 +151,21 @@ test("upload → triage → conclusion → approval → verified PDF", async ({ 
   await expect(esha.getByTestId("pdf-hash-check")).toContainText("matches the register");
   const pdfSha = createHash("sha256").update(pdf).digest("hex");
   await expect(esha.getByTestId("report-v1")).toContainText(pdfSha);
+
+  // --- Video upload and analysis ---------------------------------------------------
+  await ivan.goto(caseUrl);
+  await ivan.getByRole("button", { name: "Add evidence" }).click();
+  await ivan.getByTestId("file-input").setInputFiles(path.join(FIXTURES, "scene_video.mp4"));
+  await ivan.getByTestId("upload-button").click();
+  await expect(ivan.getByTestId("upload-result")).toContainText("matches the hash computed in your browser");
+  await ivan.getByTestId("evidence-scene_video.mp4").getByRole("link", { name: "Open workbench" }).click();
+  await expect(ivan.getByTestId("integrity-status")).toContainText("Verified");
+  await ivan.getByTestId("reveal-video").click();
+  await expect(ivan.getByTestId("video-player")).toBeVisible();
+  await ivan.getByTestId("tab-findings").click();
+  await expect(ivan.getByTestId("module-video.container").getByText("succeeded")).toBeVisible({ timeout: 120_000 });
+  await expect(ivan.getByTestId("module-video.container").getByText("reencode_indicator")).toBeVisible();
+  await expect(ivan.getByTestId("screening-headline")).toBeVisible();
 
   // --- Audit chain still verifies ------------------------------------------------
   await suku.goto("/admin");

@@ -1,16 +1,12 @@
-/** Video/audio player for evidence (fetched with auth as a blob; blurred until revealed by the parent). */
-import { forwardRef, useEffect, useState } from "react";
-import { api } from "@/lib/api";
+/** Video/audio player for evidence: in-memory only, wiped from the browser after 7 minutes. */
+import { forwardRef } from "react";
+import { useTimedMedia } from "@/lib/useTimedMedia";
+import { Expired } from "./Expired";
 
 export const MediaPlayer = forwardRef<HTMLVideoElement, { evidenceId: string; kind: "video" | "audio" }>(
   ({ evidenceId, kind }, ref) => {
-    const [url, setUrl] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    useEffect(() => {
-      let u: string | null = null;
-      api.blobUrl(`/evidence/${evidenceId}/content`).then((r) => setUrl((u = r.url))).catch((e) => setError(String(e)));
-      return () => { if (u) URL.revokeObjectURL(u); };
-    }, [evidenceId]);
+    const { url, expired, error, reload } = useTimedMedia(`/evidence/${evidenceId}/content`, evidenceId);
+    if (expired) return <Expired onReload={reload} label={`the ${kind}`} />;
     if (error) return <div className="text-sm text-red-700">Could not load media: {error}</div>;
     if (!url) return <div className="text-sm text-slate-500">Loading media…</div>;
     return kind === "video"

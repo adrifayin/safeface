@@ -10,7 +10,7 @@ from fastapi.responses import Response
 from sqlalchemy import select
 
 from app.api.deps import DB, Me, load_case, load_evidence
-from app.api.schemas import AnalysisRequest, FamilyGroup, FindingOut, FindingsResponse, JobOut
+from app.api.schemas import AnalysisRequest, FamilyGroup, FindingsResponse, JobOut
 from app.api.serialise import finding_out
 from app.core import audit
 from app.core.config import get_settings

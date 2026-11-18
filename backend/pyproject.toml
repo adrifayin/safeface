@@ -14,7 +14,9 @@ select = ["E", "F", "W", "I", "B", "UP", "S", "BLE", "RUF", "N"]
 ignore = ["S101", "S603", "S607", "B008", "N818", "N812", "RUF001", "RUF002", "RUF003", "UP040"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S", "N802"]
+"tests/**" = ["S", "N802", "E501"]
+# Module files carry long human-readable descriptions, meanings and limitations.
+"app/modules/**" = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -26,6 +28,12 @@ exclude = ["app/db/migrations/", "app/modules/_vendor/", "tests/"]
 [[tool.mypy.overrides]]
 module = ["app.modules._vendor.*"]
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+# Numerical module code: NumPy/PyTorch return Any, and vendored architectures are untyped.
+module = ["app.modules.*"]
+warn_return_any = false
+disallow_untyped_calls = false
 
 [[tool.mypy.overrides]]
 module = ["app.api.*"]

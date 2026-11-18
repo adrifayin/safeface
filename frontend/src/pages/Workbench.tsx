@@ -21,6 +21,8 @@ import { Reveal } from "@/components/Reveal";
 import { ArtefactImage, EvidenceViewer, type Overlay } from "@/components/Viewer";
 import { PlotlyArtefact } from "@/components/PlotlyChart";
 import { ScreeningBanner } from "@/components/Screening";
+import { IntegrityPanel } from "@/components/Integrity";
+import { ResultsSummary } from "@/components/ResultsSummary";
 import { MediaPlayer } from "@/components/MediaPlayer";
 import { GeometryTool } from "@/components/GeometryTool";
 
@@ -59,6 +61,7 @@ export function Workbench() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["findings", evidenceId] }),
   });
 
+  const [tab, setTab] = useState("summary");
   const player = useRef<HTMLVideoElement>(null);
   const seek = useCallback((t: number) => {
     if (player.current) {
@@ -109,7 +112,10 @@ export function Workbench() {
       />
       {screening.data && (
         <div className="mb-3">
-          <ScreeningBanner s={screening.data} onJump={(id) => document.getElementById(`module-${id}`)?.scrollIntoView({ behavior: "smooth" })} />
+          <ScreeningBanner s={screening.data} onJump={(id) => {
+            setTab("findings");
+            setTimeout(() => document.getElementById(`module-${id}`)?.scrollIntoView({ behavior: "smooth" }), 50);
+          }} />
         </div>
       )}
       <div className="mb-4" data-testid="no-verdict-notice">
@@ -129,12 +135,20 @@ export function Workbench() {
             </CardContent>
           </Card>
         </div>
-        <Tabs defaultValue="findings">
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
-            <TabsTrigger value="findings">Findings</TabsTrigger>
+            <TabsTrigger value="summary" data-testid="tab-summary">Summary</TabsTrigger>
+            <TabsTrigger value="findings" data-testid="tab-findings">All findings</TabsTrigger>
             <TabsTrigger value="conclusion" data-testid="tab-conclusion">Notes &amp; conclusion</TabsTrigger>
           </TabsList>
-          <TabsContent value="findings" className="space-y-4" data-testid="module-panel">
+          <TabsContent value="summary" className="space-y-4">
+            <IntegrityPanel evidenceId={ev.id} canVerify={hasRole(me, "examiner", "supervisor")} />
+            {screening.data && <ResultsSummary s={screening.data} onJump={(id) => {
+              setTab("findings");
+              setTimeout(() => document.getElementById(`module-${id}`)?.scrollIntoView({ behavior: "smooth" }), 50);
+            }} />}
+          </TabsContent>
+          <TabsContent value="findings" className="space-y-4" data-testid="module-panel" forceMount hidden={tab !== "findings"}>
             <StatusSummary modules={shown} jobs={latestJob} />
             {families.map((g) => (
               <section key={g.family}>

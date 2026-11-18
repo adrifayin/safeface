@@ -14,7 +14,7 @@ from typing import Any
 import numpy as np
 
 from app.modules._common import faces
-from app.modules._common.imaging import r6, save_plot
+from app.modules._common.imaging import Array, r6, save_plot
 from app.modules._common.media import load_frame, sample_frames, tools_available
 from app.modules.base import (
     Artefact,
@@ -29,7 +29,7 @@ from app.modules.base import (
 )
 
 
-def pos(rgb_means: np.ndarray, fps: float) -> np.ndarray:
+def pos(rgb_means: Array, fps: float) -> Array:
     """POS algorithm over a (T, 3) series of mean RGB values."""
     n = rgb_means.shape[0]
     win = max(2, int(1.6 * fps))
@@ -44,7 +44,7 @@ def pos(rgb_means: np.ndarray, fps: float) -> np.ndarray:
     return h
 
 
-def bandpass(x: np.ndarray, fps: float, lo: float = 0.7, hi: float = 4.0) -> np.ndarray:
+def bandpass(x: Array, fps: float, lo: float = 0.7, hi: float = 4.0) -> Array:
     from scipy.signal import butter, filtfilt
 
     nyq = fps / 2
@@ -52,7 +52,7 @@ def bandpass(x: np.ndarray, fps: float, lo: float = 0.7, hi: float = 4.0) -> np.
     return filtfilt(b, a, x) if x.size > 3 * max(len(a), len(b)) else x
 
 
-def dominant_hz(x: np.ndarray, fps: float) -> float:
+def dominant_hz(x: Array, fps: float) -> float:
     spec = np.abs(np.fft.rfft(x * np.hanning(x.size)))
     freqs = np.fft.rfftfreq(x.size, 1 / fps)
     band = (freqs >= 0.7) & (freqs <= 4.0)
@@ -87,7 +87,7 @@ class VideoRPPG(ModuleBase):
         fps = float(p["fps"])
         frames = sample_frames(item.path, item.workdir / "frames", fps, int(fps * int(p["seconds"])), 0, max_side=720)
         det, sha = faces.load_detector()
-        series: list[np.ndarray] = []
+        series: list[Array] = []
         last_box = None
         for fr in frames:
             rgb = load_frame(fr)

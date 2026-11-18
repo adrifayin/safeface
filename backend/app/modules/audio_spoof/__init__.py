@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as np
 
-from app.modules._common.imaging import r6, save_plot
+from app.modules._common.imaging import Array, r6, save_plot
 from app.modules._common.media import audio_pcm, tools_available
 from app.modules._common.speech import speech_segments, vad_available
 from app.modules._common.torchutil import deterministic_forward, device, load_checkpoint, strip_prefix, torch_available
@@ -40,7 +40,7 @@ AASIST_CONFIG = {
 _cache: dict[str, Any] = {}
 
 
-def pad_repeat(x: np.ndarray, n: int = WINDOW) -> np.ndarray:
+def pad_repeat(x: Array, n: int = WINDOW) -> Array:
     """The authors' ``pad``: tile short clips, truncate long ones."""
     if x.shape[0] >= n:
         return x[:n]
@@ -130,7 +130,10 @@ class AudioSpoof(ModuleBase):
         mode = "strict"
         for s in starts:
             x = torch.from_numpy(pad_repeat(pcm[s:s + WINDOW]).astype(np.float32))[None].to(device())
-            prob, mode = deterministic_forward(lambda x=x: float(net(x)[1].softmax(1)[0, 0].item()))
+            def spoof_prob(x: Any = x) -> float:
+                return float(net(x)[1].softmax(1)[0, 0].item())
+
+            prob, mode = deterministic_forward(spoof_prob)
             times.append(round(s / RATE, 3))
             scores_.append(r6(prob))
         arr = np.array(scores_)

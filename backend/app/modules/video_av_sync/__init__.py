@@ -18,7 +18,7 @@ from typing import Any
 import numpy as np
 
 from app.modules._common import faces
-from app.modules._common.imaging import r6, save_plot
+from app.modules._common.imaging import Array, r6, save_plot
 from app.modules._common.media import audio_pcm, tools_available
 from app.modules._common.mouth import mouth_series, speech_envelope
 from app.modules._common.speech import speech_segments, vad_available
@@ -37,11 +37,11 @@ from app.modules.base import (
 RATE = 16000
 
 
-def zscore(x: np.ndarray) -> np.ndarray:
+def zscore(x: Array) -> Array:
     return (x - x.mean()) / (x.std() or 1.0)
 
 
-def lagged_corr(a: np.ndarray, b: np.ndarray, lag: int) -> float:
+def lagged_corr(a: Array, b: Array, lag: int) -> float:
     if lag > 0:
         a, b = a[lag:], b[:-lag]
     elif lag < 0:

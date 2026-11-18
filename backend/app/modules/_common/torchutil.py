@@ -29,7 +29,7 @@ def load_checkpoint(name: str) -> tuple[Any, str, Path]:
 
     path, sha = resolve(name)
     if path.suffix == ".pt" and _is_torchscript(path):
-        obj = torch.jit.load(str(path), map_location="cpu").state_dict()  # type: ignore[no-untyped-call]
+        obj = torch.jit.load(str(path), map_location="cpu").state_dict()
         return obj, sha, path
     allow_pickle = bool(load_registry()[name].validation.get("allow_pickle", False))
     try:

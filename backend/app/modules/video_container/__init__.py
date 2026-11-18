@@ -16,9 +16,9 @@ from app.modules._common.media import audio_stream, ffprobe, tools_available, vi
 from app.modules.base import Availability, Family, Finding, MediaType, ModuleBase, Score, WorkingCopy
 from app.modules.image_metadata import AI_GENERATORS, EDITORS
 
-VIDEO_EDITORS = EDITORS + ["premiere", "final cut", "davinci", "resolve", "capcut", "kinemaster", "vegas",
+VIDEO_EDITORS = [*EDITORS, "premiere", "final cut", "davinci", "resolve", "capcut", "kinemaster", "vegas",
                            "filmora", "imovie", "handbrake", "shotcut", "openshot", "vn video"]
-VIDEO_AI = AI_GENERATORS + ["deepfacelab", "faceswap", "roop", "facefusion", "synthesia", "heygen", "d-id",
+VIDEO_AI = [*AI_GENERATORS, "deepfacelab", "faceswap", "roop", "facefusion", "synthesia", "heygen", "d-id",
                             "sora", "pika", "kling", "luma", "hailuo", "wav2lip", "liveportrait", "veo"]
 # Encoder strings that indicate the file was (re-)encoded by a generic library rather than a camera.
 GENERIC_ENCODERS = ["lavf", "lavc", "libx264", "libx265", "x264", "x265", "ffmpeg", "gstreamer"]

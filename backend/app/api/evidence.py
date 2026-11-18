@@ -199,6 +199,15 @@ def get_content(evidence_id: uuid.UUID, db: DB, me: Me) -> StreamingResponse:
     })
 
 
+@router.post("/evidence/{evidence_id}/browser-wipe")
+def browser_wipe(evidence_id: uuid.UUID, body: dict[str, str], db: DB, me: Me) -> dict[str, str]:
+    """Record that the browser discarded its in-memory copy after the 7-minute limit."""
+    item = load_evidence(db, me, evidence_id, Action.EVIDENCE_VIEW)
+    audit.record(db, me.actor, "evidence.browser_copy_wiped", "evidence", item.id,
+                 {"what": str(body.get("what", ""))[:120], "after_seconds": 420})
+    return {"status": "recorded"}
+
+
 @router.get("/evidence/{evidence_id}/integrity")
 def integrity(evidence_id: uuid.UUID, db: DB, me: Me) -> dict[str, Any]:
     """Everything that shows the evidence has not changed since it was received (plain summary)."""

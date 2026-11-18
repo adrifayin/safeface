@@ -73,14 +73,25 @@ def test_video_aigen_timeline_and_determinism(models_dir: Path, tmp_path: Path) 
     a = run("video.aigen", VIDEO, tmp_path / "a", MediaType.VIDEO)
     b = run("video.aigen", VIDEO, tmp_path / "b", MediaType.VIDEO)
     sa, sb = score_map(a), score_map(b)
-    assert sa["frames_analysed"] >= 4
+    assert sa["frames_analysed"] >= 3  # 4 s clip at 1 fps; keyframes coincide with sampled frames
     assert sa["univfd_max"] is None  # UnivFD weights not installed in this test: reported, not invented
     assert abs(sa["npr_max"] - sb["npr_max"]) <= 1e-6  # type: ignore[operator]
     names = {x.name for x in a.artefacts}
     assert {"frame_timeline.json", "top_frames.png"} <= names
 
 
-def test_audio_spoof_on_audio_and_video(models_dir: Path, tmp_path: Path) -> None:
+def test_audio_spoof_ignores_non_speech(models_dir: Path, tmp_path: Path) -> None:
+    """A pure tone is not speech: AASIST must not score it (it would read ~1.0 and raise a false doubt)."""
+    f = run("audio.spoof", AUDIO, tmp_path / "a", MediaType.AUDIO)
+    assert score_map(f)["segments_analysed"] == 0.0
+    assert get_module("audio.spoof").screen(score_map(f), f.details) is None
+
+
+def test_audio_spoof_scoring_is_deterministic(models_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import app.modules.audio_spoof as spoof
+    from app.modules.base import Availability
+
+    monkeypatch.setattr(spoof, "vad_available", lambda: Availability(False, "test: score everything"))
     fa = run("audio.spoof", AUDIO, tmp_path / "a", MediaType.AUDIO)
     fb = run("audio.spoof", AUDIO, tmp_path / "b", MediaType.AUDIO)
     assert score_map(fa)["segments_analysed"] >= 1

@@ -321,6 +321,23 @@ class Report(Base):
     generated_at: Mapped[datetime] = _ts()
 
 
+class DisposalRequest(Base):
+    """FR-6.5: disposal of a closed case's derived data, requested and approved by two supervisors."""
+
+    __tablename__ = "disposal_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=_uuid)
+    case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cases.id"), nullable=False, index=True)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    authority: Mapped[str] = mapped_column(String(512), nullable=False)  # retention order / court direction
+    requested_by_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    requested_at: Mapped[datetime] = _ts()
+    status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False)
+    decided_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result: Mapped[dict[str, Any]] = mapped_column(default=dict, nullable=False)
+
+
 # --- Model registry ----------------------------------------------------------
 
 

@@ -96,7 +96,7 @@ class PhonemeViseme(ModuleBase):
                       "Fraction of checked bilabial words without lip closure (higher = more suspicious)."),
             ],
             summary=(f"{len(checks)} bilabial word(s) checked, {len(fails)} without lip closure."
-                     + (f" Examples: {', '.join(c['word'] for c in fails[:5])}." if fails else "")),
+                     + (f" Examples: {', '.join(str(c['word']) for c in fails[:5])}." if fails else "")),
             limitations=self.limitations,
             details={"language": language, "checks": checks, "transcript": " ".join(w.text for w in words)[:5000]},
             provenance={"weights": {**ms.weights, **whisper_hashes}},

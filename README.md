@@ -26,9 +26,14 @@ Open https://localhost:8443 (trust `infra/certs/out/ca.crt`, or accept the warni
 Demo users, passwords and TOTP secrets are in `infra/demo-credentials.txt`
 (add the `totp_base32` value to any authenticator app).
 
-Model weights are not included (licences, size). Until an admin installs them
-(`scripts/fetch_models.md`), TruFor, UnivFD, NPR and face identity show as
-**unavailable** with the reason; all other modules work.
+Model weights are not included in git (licences, size). Fetch them on a connected machine with
+`python scripts/fetch_models.py` (verifies published checksums, records new ones; see `scripts/fetch_models.md`).
+Modules whose weights are missing show as **unavailable** with the reason.
+
+Photos, videos and audio are all supported. Each item gets: an integrity panel (sealed original, hash re-checks,
+custody), a preliminary automated screening ("doubt raised / no doubt raised / incomplete", with its accuracy
+caveat), a results chart, and per-check findings. Working copies and figures are deleted 7 minutes after analysis
+and the browser wipes its copy after 7 minutes (docs/SECURITY.md §3a); originals, scores and reports are kept.
 
 ## Tests
 

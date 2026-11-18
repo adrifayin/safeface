@@ -51,8 +51,8 @@ from app.modules.base import (
 )
 from app.modules.registry import get_module
 from app.modules.status import report_worker_status
-from app.services.retention import purge_delay, purge_work_files, restore_working_copy, schedule_purge
 from app.modules.weights import WeightsError
+from app.services.retention import purge_delay, purge_work_files, restore_working_copy, schedule_purge
 from app.workers.celery_app import celery_app
 
 log = logging.getLogger(__name__)

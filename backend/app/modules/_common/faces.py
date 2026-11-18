@@ -18,7 +18,7 @@ from app.modules.weights import resolve, weights_availability
 
 DETECTOR = "insightface-det-10g"
 RECOGNISER = "insightface-w600k-r50"
-_models: dict[str, Any] = {}
+_models: dict[tuple[str, str], Any] = {}
 
 
 def detector_available() -> Availability:

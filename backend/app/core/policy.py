@@ -36,6 +36,8 @@ class Action(StrEnum):
     CASE_LIST_ALL = "case.list_all"
     CASE_ASSIGN = "case.assign"
     CASE_VIEW = "case.view"
+    CASE_CLOSE = "case.close"
+    CASE_DISPOSE = "case.dispose"
     EVIDENCE_UPLOAD = "evidence.upload"
     EVIDENCE_VIEW = "evidence.view"
     EVIDENCE_VERIFY = "evidence.verify"
@@ -76,7 +78,7 @@ ROLE_ACTIONS: dict[Role, frozenset[Action]] = {
     Role.SUPERVISOR: frozenset(
         _CASE_WORKER
         | {
-            A.CASE_CREATE, A.CASE_LIST_ALL, A.CASE_ASSIGN, A.EVIDENCE_VERIFY,
+            A.CASE_CREATE, A.CASE_LIST_ALL, A.CASE_ASSIGN, A.CASE_CLOSE, A.CASE_DISPOSE, A.EVIDENCE_VERIFY,
             A.CONCLUSION_APPROVE, A.AUDIT_VIEW, A.AUDIT_VERIFY, A.MODELS_APPROVE_CHANGE,
         }
     ),
@@ -96,6 +98,8 @@ CASE_PERMISSION_NEEDED: dict[Action, CasePermission | None] = {
     A.CASE_LIST_ALL: None,
     A.CASE_ASSIGN: None,
     A.CASE_VIEW: CasePermission.VIEW,
+    A.CASE_CLOSE: None,
+    A.CASE_DISPOSE: None,
     A.EVIDENCE_UPLOAD: CasePermission.ANALYSE,
     A.EVIDENCE_VIEW: CasePermission.VIEW,
     A.EVIDENCE_VERIFY: CasePermission.VIEW,

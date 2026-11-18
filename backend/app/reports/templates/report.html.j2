@@ -4,48 +4,121 @@
 <meta charset="utf-8">
 <title>SafeFace report {{ case.case_no }} v{{ version }}</title>
 <style>
-  @page { size: A4; margin: 18mm 16mm 20mm 16mm;
+  @page { size: A4; margin: 16mm 15mm 18mm 15mm;
     @bottom-left { content: "SafeFace {{ app_version }} · Case {{ case.case_no }} · Report v{{ version }} ({{ status|upper }})"; font-size: 8pt; color: #555; }
     @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 8pt; color: #555; } }
   body { font-family: "DejaVu Sans", sans-serif; font-size: 9.5pt; color: #111; line-height: 1.4; }
-  h1 { font-size: 16pt; margin: 0 0 4pt; } h2 { font-size: 12.5pt; border-bottom: 1px solid #999; padding-bottom: 2pt; margin-top: 16pt; }
-  h3 { font-size: 11pt; margin: 12pt 0 4pt; } h4 { font-size: 10pt; margin: 10pt 0 3pt; }
+  h1 { font-size: 17pt; margin: 0 0 2pt; } h2 { font-size: 12.5pt; border-bottom: 1px solid #999; padding-bottom: 2pt; margin-top: 14pt; }
+  h3 { font-size: 11pt; margin: 10pt 0 4pt; } h4 { font-size: 10pt; margin: 8pt 0 3pt; }
   table { border-collapse: collapse; width: 100%; margin: 4pt 0 8pt; }
   th, td { border: 1px solid #bbb; padding: 3pt 5pt; text-align: left; vertical-align: top; }
-  th { background: #eee; width: 28%; } .mono { font-family: "DejaVu Sans Mono", monospace; font-size: 8pt; word-break: break-all; }
-  .box { border: 1.5px solid #333; padding: 6pt 8pt; margin: 8pt 0; background: #f6f6f6; }
+  th { background: #eee; } .kv th { width: 28%; }
+  .mono { font-family: "DejaVu Sans Mono", monospace; font-size: 7.5pt; word-break: break-all; }
+  .box { border: 1.5px solid #333; padding: 6pt 8pt; margin: 6pt 0; background: #f6f6f6; }
+  .ok { border-color: #15803d; background: #f0fdf4; } .warn { border-color: #b45309; background: #fffbeb; }
+  .bad { border-color: #b91c1c; background: #fef2f2; }
+  .big { font-size: 11.5pt; font-weight: bold; margin-bottom: 2pt; }
   .limit { border-left: 3px solid #b45309; padding: 3pt 6pt; background: #fff7ed; margin: 4pt 0; }
   .finding { page-break-inside: avoid; border: 1px solid #ccc; padding: 6pt 8pt; margin: 8pt 0; }
-  .tag { display: inline-block; border: 1px solid #555; padding: 0 4pt; font-size: 8pt; margin-left: 4pt; }
-  figure { margin: 6pt 0; } figure img { max-width: 100%; max-height: 90mm; border: 1px solid #999; }
+  .tag { display: inline-block; border: 1px solid #555; padding: 0 4pt; font-size: 7.5pt; margin-left: 4pt; }
+  .bar { position: relative; height: 9pt; background: #e5e7eb; border: 1px solid #9ca3af; margin-bottom: 2pt; }
+  .bar .fill { position: absolute; left: 0; top: 0; bottom: 0; background: #64748b; }
+  .bar .fill.flag { background: #b91c1c; }
+  .bar .thr { position: absolute; top: -2pt; bottom: -2pt; width: 1.5pt; background: #d97706; }
+  .pill { font-size: 7.5pt; font-weight: bold; padding: 0 4pt; }
+  .pill.flag { background: #fee2e2; color: #991b1b; } .pill.clear { background: #e5e7eb; color: #374151; }
+  figure { margin: 6pt 0; } figure img { max-width: 100%; max-height: 85mm; border: 1px solid #999; }
   figcaption { font-size: 8pt; color: #333; }
   .watermark { position: fixed; top: 40%; left: 10%; font-size: 70pt; color: rgba(200,0,0,0.12); transform: rotate(-30deg); }
-  .sig { height: 28mm; border-bottom: 1px solid #000; }
+  .sig { height: 22mm; border-bottom: 1px solid #000; }
+  .pagebreak { page-break-before: always; }
+  .small { font-size: 8pt; }
 </style>
 </head>
 <body>
 {% if status != "final" %}<div class="watermark">DRAFT{% if preview %} PREVIEW{% endif %}</div>{% endif %}
 
-<h1>Forensic image authentication report</h1>
-<div>Case {{ case.case_no }} · Report version {{ version }} · Status: <strong>{{ status|upper }}</strong> · Generated {{ generated_at }}</div>
+{# ============================ PART 1: PLAIN-LANGUAGE SUMMARY ============================ #}
+<h1>Forensic examination — summary</h1>
+<div>Case {{ case.case_no }}{% if case.fir_no %} · FIR {{ case.fir_no }}{% endif %} · {{ case.crime_head }} · Report v{{ version }} · <strong>{{ status|upper }}</strong> · {{ generated_at }}</div>
+<p class="small">Part 1 explains the results in plain language. Part 2 (technical annex) contains the full method, parameters, versions and figures for court.</p>
+
+{% for sec in sections %}
+{% set ev = evidence | selectattr("evidence_id", "equalto", sec.item.id|string) | first %}
+<h2>{{ sec.item.original_filename }} <span style="font-weight:normal;font-size:9pt">({{ sec.item.media_type }}, {{ sec.item.size_bytes }} bytes)</span></h2>
+
+<div class="box {{ 'ok' if ev and ev.verified_ok else 'bad' }}">
+  <div class="big">1. Evidence integrity — {{ "VERIFIED: the file is unchanged since it was received" if ev and ev.verified_ok else "NOT VERIFIED" }}</div>
+  SHA-256 <span class="mono">{{ sec.item.sha256 }}</span><br>
+  Received {{ ev.ingested_at if ev else "—" }}. Re-checked from sealed storage at {{ ev.verified_at if ev else "—" }}, immediately before this report.
+  The original is kept in write-once storage and was never modified; every analysis used a copy that was hash-checked first.
+</div>
+
+<div class="box {{ 'bad' if sec.screening.status == 'doubt_raised' else ('warn' if sec.screening.status == 'incomplete' else '') }}">
+  <div class="big">2. Automated screening (preliminary) — {{ sec.screening.headline }}</div>
+  {% if sec.screening.flags %}<ul style="margin:2pt 0">{% for fl in sec.screening.flags %}<li>{{ fl.reason }}</li>{% endfor %}</ul>{% endif %}
+  <div class="small">{{ sec.screening.caveat }}</div>
+</div>
+
+<div class="box {{ 'ok' if sec.conclusion and sec.conclusion.approved_at else 'warn' }}">
+  <div class="big">3. Examiner's conclusion — {{ sec.conclusion.label if sec.conclusion else "not yet recorded" }}</div>
+  {% if sec.conclusion %}{{ sec.conclusion.rationale }}<br>
+  <span class="small">By {{ sec.conclusion.author }}{% if sec.conclusion.approved_at %}; approved by {{ sec.conclusion.approved_by }} on {{ sec.conclusion.approved_at|iso }}{% else %}; <strong>awaiting supervisor approval</strong>{% endif %}.</span>{% endif %}
+</div>
+
+<h3>4. What each check found</h3>
+<table>
+  <tr><th style="width:22%">Check</th><th style="width:36%">What it looks at</th><th style="width:30%">Result</th><th style="width:12%">Doubt?</th></tr>
+  {% for c in sec.screening.checks %}
+  <tr>
+    <td><strong>{{ c.check }}</strong>{% if c.triage_indicator %}<br><span class="small">AI tool — indicator only</span>{% endif %}</td>
+    <td>{{ c.plain }}</td>
+    <td>
+      {% if c.value is not none and c.range and c.range[0] == 0 and c.range[1] == 1 %}
+        <div class="bar"><div class="fill {{ 'flag' if c.flagged else '' }}" style="width: {{ (c.value * 100)|round(1) }}%"></div>
+        {% if c.threshold is not none and c.threshold <= 1 %}<div class="thr" style="left: {{ (c.threshold * 100)|round(1) }}%"></div>{% endif %}</div>
+        <span class="small">{{ c.score_name }} = {{ "%.2f"|format(c.value) }}{% if c.threshold is not none %} (threshold {{ c.threshold }}){% endif %}</span>
+      {% elif c.value is not none %}
+        <span class="small">{{ c.score_name }} = {{ "%.4g"|format(c.value) }}{% if c.threshold is not none %} (threshold {{ c.threshold }}){% endif %}</span>
+      {% else %}<span class="small">no score (see annex)</span>{% endif %}
+      {% if c.reason %}<br><span class="small">{{ c.reason }}</span>{% endif %}
+    </td>
+    <td>{% if c.flagged %}<span class="pill flag">DOUBT</span>{% else %}<span class="pill clear">none</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+<p class="small">How to read the bars: the grey bar is the score on a 0–1 scale; the orange mark is the screening threshold; a red bar means that check raised a doubt.
+A score is what one tool measured, not a determination that the item is manipulated or not.</p>
+{% endfor %}
+
+<h3>Signatures</h3>
+<table class="kv">
+  <tr><th>Examiner</th><td>{% for s in signed_by %}{{ s.examiner }}<br>{% endfor %}<div class="sig"></div>Signature, name, designation, date</td></tr>
+  <tr><th>Supervisor (approval)</th><td>{% for s in signed_by %}{{ s.supervisor }} ({{ s.approved_at }})<br>{% endfor %}<div class="sig"></div>Signature, name, designation, date</td></tr>
+</table>
+
+{# ============================ PART 2: TECHNICAL ANNEX (SWGDE) ============================ #}
+<div class="pagebreak"></div>
+<h1>Part 2 — Technical annex</h1>
+<p>Structured after SWGDE Best Practices for Image and Video Authentication. Everything needed to reproduce each result is recorded below.</p>
 
 <div class="box"><strong>Statement on automated scores.</strong> {{ indicator_statement }}</div>
 
-<h2>1. Case details</h2>
-<table>
+<h2>A1. Case details</h2>
+<table class="kv">
   <tr><th>Case number</th><td>{{ case.case_no }}</td></tr>
   <tr><th>FIR number</th><td>{{ case.fir_no or "—" }}</td></tr>
   <tr><th>Crime head</th><td>{{ case.crime_head }}</td></tr>
   <tr><th>Investigating officer</th><td>{{ case.investigating_officer }}</td></tr>
   <tr><th>Case created by</th><td>{{ investigator }}</td></tr>
   <tr><th>Assigned examiner</th><td>{{ examiner or "—" }}</td></tr>
-  <tr><th>Description / request</th><td>{{ case.description or "—" }}</td></tr>
+  <tr><th>Examination request</th><td>{{ case.description or "—" }}</td></tr>
 </table>
 
-<h2>2. Evidence received and integrity</h2>
-<p>Each original was hashed on ingest, stored in write-once (object-locked) storage, and re-hashed from storage immediately before this report was generated. All analysis was performed on working copies whose hashes were verified before each analysis.</p>
+<h2>A2. Evidence received and integrity</h2>
+<p>Each original was hashed (SHA-256 and MD5) while it was received, stored in write-once (object-locked) storage, and re-hashed from storage immediately before this report. Working copies and figures are deleted 7 minutes after analysis; a working copy is re-created from the sealed original, and hash-checked, whenever it is needed again.</p>
 {% for e in evidence %}
-<table>
+<table class="kv">
   <tr><th>Item</th><td>{{ e.filename }} ({{ e.kind }}, {{ e.detected_mime }}, {{ e.size_bytes }} bytes)</td></tr>
   <tr><th>Evidence ID</th><td class="mono">{{ e.evidence_id }}</td></tr>
   <tr><th>SHA-256</th><td class="mono">{{ e.sha256 }}</td></tr>
@@ -57,8 +130,8 @@
 </table>
 {% endfor %}
 
-<h2>3. Examination environment</h2>
-<table>
+<h2>A3. Examination environment</h2>
+<table class="kv">
   <tr><th>Software</th><td>SafeFace Forensic Workbench {{ app_version }} ({{ deployment }})</td></tr>
   <tr><th>API container image</th><td class="mono">{{ api_image_digest }}</td></tr>
   {% for env in environments %}
@@ -71,14 +144,14 @@
 </table>
 
 {% for sec in sections %}
-<h2>4.{{ loop.index }} Findings — {{ sec.item.original_filename }}</h2>
+<h2>A4.{{ loop.index }} Findings — {{ sec.item.original_filename }}</h2>
 <p class="mono">Evidence {{ sec.item.id }} · SHA-256 {{ sec.item.sha256 }}{% if sec.references %} · compared with reference(s): {{ sec.references|join(", ") }}{% endif %}</p>
 {% for g in sec.groups %}
 <h3>{{ g.label }}</h3>
 {% for f in g.findings %}
 <div class="finding">
   <h4>{{ f.name }} <span class="tag">{{ f.module_id }} v{{ f.module_version }}</span><span class="tag">Tier {{ f.tier }}</span>{% if f.triage_indicator %}<span class="tag">TRIAGE INDICATOR</span>{% endif %}</h4>
-  <table>
+  <table class="kv">
     <tr><th>Method</th><td>{{ f.method }}</td></tr>
     <tr><th>Parameters</th><td class="mono">{{ f.params|tojson }}</td></tr>
     {% if f.weights %}<tr><th>Model weights (SHA-256)</th><td class="mono">{% for k, v in f.weights.items() %}{{ k }}: {{ v }}<br>{% endfor %}</td></tr>{% endif %}
@@ -93,7 +166,8 @@
     {% endfor %}
   </table>
   {% for fig in f.figures %}
-  {% if fig.src %}<figure><img src="{{ fig.src }}" alt="{{ fig.name }}"><figcaption>Figure: {{ fig.description }} ({{ fig.name }}, SHA-256 <span class="mono">{{ fig.sha256 }}</span>)</figcaption></figure>{% else %}<p style="font-size:8pt">Figure "{{ fig.description }}" was deleted after the 7-minute retention period (SHA-256 <span class="mono">{{ fig.sha256 }}</span> recorded). Re-run the analysis to include it.</p>{% endif %}
+  {% if fig.src %}<figure><img src="{{ fig.src }}" alt="{{ fig.name }}"><figcaption>Figure: {{ fig.description }} ({{ fig.name }}, SHA-256 <span class="mono">{{ fig.sha256 }}</span>)</figcaption></figure>
+  {% else %}<p class="small">Figure "{{ fig.description }}" was deleted after the 7-minute retention period (SHA-256 <span class="mono">{{ fig.sha256 }}</span> recorded). Re-run the analysis before generating the report to include it.</p>{% endif %}
   {% endfor %}
   <div class="limit"><strong>Limitations.</strong> {{ f.limitations }}</div>
   {% for n in f.notes %}<p><strong>Examiner note</strong> ({{ n.author }}, {{ n.created_at|iso }}): {{ n.text }}</p>{% endfor %}
@@ -106,38 +180,24 @@
 {% for n in sec.general_notes %}<p><strong>{{ n.author }}</strong>, {{ n.created_at|iso }}: {{ n.text }}</p>{% endfor %}
 {% endif %}
 
-<h3>Conclusion</h3>
+<h3>Conclusion (fixed scale)</h3>
 <p>Scale used: {{ scale|join(" · ") }}</p>
 {% if sec.conclusion %}
-<div class="box">
-  <strong>{{ sec.conclusion.label }}</strong><br>
-  {{ sec.conclusion.rationale }}<br>
-  <small>Recorded by {{ sec.conclusion.author }} at {{ sec.conclusion.created_at|iso }}.</small>
-</div>
-<p><strong>Supervisor approval:</strong>
-{% if sec.conclusion.approved_at %}approved by {{ sec.conclusion.approved_by }} at {{ sec.conclusion.approved_at|iso }}{% if sec.conclusion.approval_comment %} — "{{ sec.conclusion.approval_comment }}"{% endif %}
-{% else %}<strong>NOT APPROVED</strong> — this report is a draft.{% endif %}</p>
-{% else %}
-<p><strong>No conclusion recorded.</strong> This report is a draft.</p>
-{% endif %}
+<div class="box"><strong>{{ sec.conclusion.label }}</strong><br>{{ sec.conclusion.rationale }}<br>
+  <span class="small">Recorded by {{ sec.conclusion.author }} at {{ sec.conclusion.created_at|iso }}.
+  {% if sec.conclusion.approved_at %}Approved by {{ sec.conclusion.approved_by }} at {{ sec.conclusion.approved_at|iso }}{% if sec.conclusion.approval_comment %} — "{{ sec.conclusion.approval_comment }}"{% endif %}.{% else %}<strong>NOT APPROVED</strong> — this report is a draft.{% endif %}</span></div>
+{% else %}<p><strong>No conclusion recorded.</strong> This report is a draft.</p>{% endif %}
 {% endfor %}
 
-<h2>Appendix A. Automated preliminary screening (not a finding)</h2>
+<h2>A5. Automated preliminary screening (not a finding)</h2>
 {% for sec in sections %}
-<div class="box">
-  <strong>{{ sec.item.original_filename }}: {{ sec.screening.headline }}</strong><br>
+<div class="box"><strong>{{ sec.item.original_filename }}: {{ sec.screening.headline }}</strong><br>
   {% if sec.screening.flags %}Checks that raised a doubt:<ul>{% for fl in sec.screening.flags %}<li>{{ fl.reason }}</li>{% endfor %}</ul>{% endif %}
   {% if sec.screening.detectors_without_result %}Detectors without a result: {{ sec.screening.detectors_without_result|join(", ") }}.<br>{% endif %}
-  <small>{{ sec.screening.caveat }}</small>
-</div>
+  <span class="small">{{ sec.screening.caveat }}</span></div>
 {% endfor %}
-<p>This appendix records the automated triage that led to examination. It has no evidential weight; the examiner's approved conclusion in section 4 is the only opinion expressed in this report.</p>
+<p>This screening records the automated triage that led to examination. It has no evidential weight; the examiner's approved conclusion is the only opinion expressed in this report.</p>
 
-<h2>5. Signatures</h2>
-<table>
-  <tr><th>Examiner</th><td>{% for s in signed_by %}{{ s.examiner }}<br>{% endfor %}<div class="sig"></div>Signature, name, designation, date</td></tr>
-  <tr><th>Supervisor (approval)</th><td>{% for s in signed_by %}{{ s.supervisor }} ({{ s.approved_at }})<br>{% endfor %}<div class="sig"></div>Signature, name, designation, date</td></tr>
-</table>
-<p style="font-size:8pt">The SHA-256 of this PDF is recorded in the SafeFace report register and in the hash-chained audit log at the time of generation; it can be checked with any standard tool (e.g. <span class="mono">sha256sum</span>). Generated by {{ generated_by }}.</p>
+<p class="small">The SHA-256 of this PDF is recorded in the SafeFace report register and in the hash-chained audit log at the time of generation; it can be checked with any standard tool (e.g. <span class="mono">sha256sum</span>). Generated by {{ generated_by }}.</p>
 </body>
 </html>

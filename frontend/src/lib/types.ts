@@ -234,6 +234,11 @@ export interface ScreeningResult {
   headline: string;
   flags: { module_id: string; check: string; reason: string; finding_id: string }[];
   checks_run: string[];
+  checks: {
+    module_id: string; check: string; family: string; plain: string; triage_indicator: boolean;
+    score_name: string | null; value: number | null; range: [number, number] | null; meaning: string;
+    threshold: number | null; flagged: boolean; reason: string; summary: string;
+  }[];
   detectors_without_result: string[];
   pending: string[];
   caveat: string;

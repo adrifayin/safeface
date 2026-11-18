@@ -73,6 +73,25 @@ question every step.
   finding, note, report and audit tables; triggers refuse UPDATE/DELETE/TRUNCATE
   for every role including the owner.
 
+### 3a. Short retention of derived files (7 minutes)
+
+Agreed with the user to minimise how long sensitive media copies exist:
+
+| Data | Kept | Where |
+|---|---|---|
+| Sealed original (write-once), SHA-256/MD5, hash re-verifications | Permanently (object-lock retention) | MinIO `evidence-originals`, PostgreSQL |
+| Findings: scores, summaries, provenance, artefact SHA-256s | Permanently | PostgreSQL |
+| Audit chain, reports (PDF + SHA-256) | Permanently | PostgreSQL, MinIO `reports` |
+| Working copies, figures/heatmaps/plots | **Deleted 7 minutes after the last analysis** of the item (`SAFEFACE_WORK_RETENTION_SECONDS`, default 420) | MinIO `working`, `artefacts` |
+| Frames/audio extracted during analysis | Deleted when the job ends | worker tmpfs |
+| The browser's copy of an image/video/figure | In memory only (no cache), **wiped 7 minutes after opening** or on leaving the page | browser |
+
+A purged working copy is re-created from the sealed original, and its SHA-256 is checked, whenever it is
+needed again (viewing or re-analysis). Purges (`evidence.work_files_purged`), restores
+(`evidence.working_copy_restored`) and browser wipes (`evidence.browser_copy_wiped`) are written to the audit
+chain. A report generated after a purge lists each deleted figure with its recorded SHA-256; re-run the analysis
+first to include the figures. The application can never delete an original (enforced in code and by object lock).
+
 ## 4. Audit log — NFR-S5, FR-6.2
 
 * `entry_hash = SHA-256(prev_hash || canonical_json(entry))`, serialised by

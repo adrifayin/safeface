@@ -114,6 +114,11 @@ def load_case(db: Session, me: CurrentUser, case_id: uuid.UUID, action: Action) 
         raise HTTPException(status.HTTP_404_NOT_FOUND, "case not found")
     if not is_allowed(me.principal.roles, action, perm):
         raise forbid()
+    if case.status != "open" and action in (Action.EVIDENCE_UPLOAD, Action.ANALYSIS_TIER1, Action.ANALYSIS_TIER2,
+                                            Action.NOTE_WRITE, Action.CONCLUSION_WRITE):
+        raise HTTPException(status.HTTP_409_CONFLICT, f"case is {case.status}: no new evidence, analyses or notes")
+    if case.status == "disposed" and action == Action.EVIDENCE_VIEW:
+        raise HTTPException(status.HTTP_410_GONE, "case disposed: evidence media is no longer available")
     return case
 
 

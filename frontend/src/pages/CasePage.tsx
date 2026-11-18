@@ -176,48 +176,60 @@ function EvidenceRow({ e, all, me, canLink, screening }: {
   );
 }
 
+interface QueueItem {
+  file: File;
+  state: "waiting" | "uploading" | "done" | "error";
+  progress: number;
+  message: string;
+}
+
 function UploadPanel({ caseId, questioned, onClose }: { caseId: string; questioned: Evidence[]; onClose: () => void }) {
   const qc = useQueryClient();
-  const [file, setFile] = useState<File | null>(null);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
   const [drag, setDrag] = useState(false);
-  const [progress, setProgress] = useState<number | null>(null);
-  const [result, setResult] = useState<string | null>(null);
-  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
   const [meta, setMeta] = useState<Omit<EvidenceMetadata, "filename">>({
     kind: "questioned", source_platform: "", source_url: "", source_device: "", complainant: "",
     collected_by: "", collected_at: "", upload_method: "web-upload", reference_for: [],
   });
   const set = (k: keyof typeof meta) => (e: { target: { value: string } }) => setMeta({ ...meta, [k]: e.target.value });
 
+  const add = (files: FileList | File[]) => {
+    const list = Array.from(files).filter((f) => f.size > 0);
+    setQueue((q) => [...q.filter((x) => x.state !== "done"), ...list.map((file) => ({ file, state: "waiting" as const, progress: 0, message: "" }))]);
+  };
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
     setDrag(false);
-    if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files.length) add(e.dataTransfer.files);
   };
+  const patch = (i: number, p: Partial<QueueItem>) => setQueue((q) => q.map((x, j) => (j === i ? { ...x, ...p } : x)));
 
   async function submit() {
-    if (!file) return;
-    setError(null);
-    setResult(null);
-    setProgress(0);
+    setBusy(true);
     const clean = Object.fromEntries(Object.entries(meta).map(([k, v]) => [k, v === "" ? null : v]));
     if (clean.collected_at) clean.collected_at = new Date(clean.collected_at as string).toISOString();
-    try {
-      const [local, res] = await Promise.all([
-        sha256OfFile(file),
-        uploadEvidence(caseId, file, { ...(clean as unknown as EvidenceMetadata), filename: file.name, kind: meta.kind }, setProgress),
-      ]);
-      const match = local === null ? "browser hash skipped (large file)" : local === res.sha256 ? "matches the hash computed in your browser" : "DOES NOT MATCH the browser hash";
-      setResult(`Ingested ${res.evidence.original_filename}. SHA-256 ${res.sha256} — ${match}. ${res.triage_job_ids.length} automatic check(s) started.`);
-      setFile(null);
-      void qc.invalidateQueries({ queryKey: ["case", caseId] });
-    } catch (e) {
-      setError(e);
-    } finally {
-      setProgress(null);
+    for (let i = 0; i < queue.length; i++) {
+      const item = queue[i];
+      if (item.state === "done") continue;
+      patch(i, { state: "uploading", progress: 0, message: "" });
+      try {
+        const [local, res] = await Promise.all([
+          sha256OfFile(item.file),
+          uploadEvidence(caseId, item.file, { ...(clean as unknown as EvidenceMetadata), filename: item.file.name, kind: meta.kind },
+            (p) => patch(i, { progress: p })),
+        ]);
+        const match = local === null ? "browser hash skipped (large file)" : local === res.sha256 ? "matches the hash computed in your browser" : "DOES NOT MATCH the browser hash";
+        patch(i, { state: "done", progress: 1, message: `SHA-256 ${res.sha256} — ${match}. ${res.triage_job_ids.length} automatic check(s) started.` });
+      } catch (e) {
+        patch(i, { state: "error", message: e instanceof Error ? e.message : String(e) });
+      }
     }
+    setBusy(false);
+    void qc.invalidateQueries({ queryKey: ["case", caseId] });
   }
 
+  const pending = queue.filter((x) => x.state !== "done").length;
   return (
     <Card>
       <CardHeader className="flex items-center">
@@ -240,7 +252,7 @@ function UploadPanel({ caseId, questioned, onClose }: { caseId: string; question
             </Select></div>
         )}
         <div>
-          <Label>2. File</Label>
+          <Label>2. Files (one or many — photos, videos, audio)</Label>
           <label
             onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
             onDragLeave={() => setDrag(false)}
@@ -248,13 +260,35 @@ function UploadPanel({ caseId, questioned, onClose }: { caseId: string; question
             className={`flex cursor-pointer flex-col items-center gap-1 rounded-md border-2 border-dashed p-5 text-center text-sm ${drag ? "border-slate-700 bg-slate-100" : "border-slate-300 hover:border-slate-500"}`}
           >
             <FileUp className="h-6 w-6 text-slate-500" />
-            {file ? <span><strong>{file.name}</strong> ({formatBytes(file.size)})</span>
-              : <><span>Drag a file here, or click to choose</span><span className="text-xs text-slate-500">JPEG, PNG, HEIC, WEBP · MP4, MOV, MKV, WEBM · WAV, MP3, M4A, OGG · up to 4 GB</span></>}
-            <input type="file" className="hidden" data-testid="file-input" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            <span>Drag files or a folder's contents here, or click to choose</span>
+            <span className="text-xs text-slate-500">JPEG, PNG, HEIC, WEBP · MP4, MOV, MKV, WEBM · WAV, MP3, M4A, OGG · up to 4 GB each</span>
+            <input type="file" multiple className="hidden" data-testid="file-input"
+                   onChange={(e) => { if (e.target.files) add(e.target.files); e.target.value = ""; }} />
           </label>
         </div>
+        {queue.length > 0 && (
+          <ul className="space-y-2" data-testid="upload-queue">
+            {queue.map((q, i) => (
+              <li key={`${q.file.name}-${i}`} className="rounded border p-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate font-medium">{q.file.name}</span>
+                  <span className="text-xs text-slate-500">{formatBytes(q.file.size)}</span>
+                  <Badge tone={q.state === "done" ? "ok" : q.state === "error" ? "bad" : q.state === "uploading" ? "info" : "neutral"}>{q.state}</Badge>
+                  {q.state === "waiting" && !busy && (
+                    <button className="text-xs text-slate-500 hover:underline" onClick={() => setQueue((x) => x.filter((_, j) => j !== i))}>remove</button>
+                  )}
+                </div>
+                {q.state === "uploading" && (
+                  <div className="mt-1 h-1.5 w-full rounded bg-slate-200"><div className="h-1.5 rounded bg-slate-800 transition-all" style={{ width: `${Math.round(q.progress * 100)}%` }} /></div>
+                )}
+                {q.message && <div className={`mt-1 break-all text-xs ${q.state === "error" ? "text-red-800" : "text-emerald-900"}`}
+                                   data-testid={q.state === "done" ? "upload-result" : undefined}>{q.message}</div>}
+              </li>
+            ))}
+          </ul>
+        )}
         <details className="rounded border border-slate-200 p-2 text-sm" open>
-          <summary className="cursor-pointer font-medium text-slate-700">3. Source and collection (recommended)</summary>
+          <summary className="cursor-pointer font-medium text-slate-700">3. Source and collection (recommended; applies to every file in this batch)</summary>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <div><Label>Platform</Label><Input value={meta.source_platform ?? ""} onChange={set("source_platform")} placeholder="WhatsApp, Instagram…" /></div>
             <div><Label>Source device</Label><Input value={meta.source_device ?? ""} onChange={set("source_device")} /></div>
@@ -264,16 +298,10 @@ function UploadPanel({ caseId, questioned, onClose }: { caseId: string; question
             <div className="col-span-2"><Label>Collected at</Label><Input type="datetime-local" value={meta.collected_at ?? ""} onChange={set("collected_at")} /></div>
           </div>
         </details>
-        {progress !== null && (
-          <div>
-            <div className="h-2 w-full rounded bg-slate-200"><div className="h-2 rounded bg-slate-800 transition-all" style={{ width: `${Math.round(progress * 100)}%` }} /></div>
-            <p className="mt-1 text-xs text-slate-500">Uploading and hashing… {Math.round(progress * 100)}%</p>
-          </div>
-        )}
-        {result && <div className="break-all rounded bg-emerald-50 p-2 text-sm text-emerald-900" data-testid="upload-result">{result}</div>}
-        <ErrorBox error={error} />
-        <Button className="w-full" onClick={() => void submit()} disabled={!file || progress !== null} data-testid="upload-button">Hash &amp; ingest</Button>
-        <p className="text-xs text-slate-500">The original is hashed (SHA-256 + MD5) while streaming, stored write-once and never modified. Analysis runs on a verified working copy.</p>
+        <Button className="w-full" onClick={() => void submit()} disabled={!pending || busy} data-testid="upload-button">
+          {busy ? "Uploading…" : `Hash & ingest${pending > 1 ? ` ${pending} files` : ""}`}
+        </Button>
+        <p className="text-xs text-slate-500">Each original is hashed (SHA-256 + MD5) while streaming, stored write-once and never modified, and its automatic checks start as soon as it is stored.</p>
       </CardContent>
     </Card>
   );

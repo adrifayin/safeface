@@ -18,6 +18,7 @@ from typing import Any
 
 import numpy as np
 
+from app.modules._common import faces
 from app.modules._common.imaging import Array, colormap, load_rgb, r6, save_png
 from app.modules.base import (
     Artefact,
@@ -29,8 +30,8 @@ from app.modules.base import (
     Score,
     WorkingCopy,
 )
-from app.modules._common import faces
 from app.modules.weights import WeightsError
+
 
 def _largest_face_embedding(det: Any, rec: Any, rgb: Array) -> Array | None:
     found = faces.detect(det, rgb)

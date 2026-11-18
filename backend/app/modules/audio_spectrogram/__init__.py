@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 
-from app.modules._common.imaging import colormap, r6, save_png
+from app.modules._common.imaging import Array, colormap, r6, save_png
 from app.modules._common.media import audio_pcm, audio_stream, ffprobe, tools_available
 from app.modules.base import (
     Artefact,
@@ -28,8 +28,8 @@ from app.modules.base import (
 RATE = 16000
 
 
-def mel_filterbank(n_mels: int, n_fft: int, rate: int) -> np.ndarray:
-    def hz_to_mel(f: np.ndarray) -> np.ndarray:
+def mel_filterbank(n_mels: int, n_fft: int, rate: int) -> Array:
+    def hz_to_mel(f: Array) -> Array:
         return 2595.0 * np.log10(1.0 + f / 700.0)
 
     mels = np.linspace(hz_to_mel(np.array(0.0)), hz_to_mel(np.array(rate / 2)), n_mels + 2)

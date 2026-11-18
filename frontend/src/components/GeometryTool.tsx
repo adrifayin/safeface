@@ -3,25 +3,23 @@
  * Coordinates are converted to the image's own pixel grid and sent as parameters,
  * so the run is reproducible from the recorded parameters.
  */
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useRef, useState, type MouseEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useTimedMedia } from "@/lib/useTimedMedia";
+import { Expired } from "./Expired";
 import { Button, ErrorBox, Select } from "./ui";
 
 type Line = [number, number, number, number];
 
 export function GeometryTool({ evidenceId }: { evidenceId: string }) {
   const qc = useQueryClient();
-  const [url, setUrl] = useState<string | null>(null);
+  const media = useTimedMedia(`/evidence/${evidenceId}/content`, evidenceId);
+  const url = media.url;
   const [mode, setMode] = useState<"perspective" | "shadow">("perspective");
   const [lines, setLines] = useState<Line[]>([]);
   const [pending, setPending] = useState<[number, number] | null>(null);
   const img = useRef<HTMLImageElement>(null);
-  useEffect(() => {
-    let u: string | null = null;
-    api.blobUrl(`/evidence/${evidenceId}/content`).then((r) => setUrl((u = r.url)));
-    return () => { if (u) URL.revokeObjectURL(u); };
-  }, [evidenceId]);
   const run = useMutation({
     mutationFn: () => api.post(`/evidence/${evidenceId}/analyses`, {
       module_ids: ["image.geometry"], params: { "image.geometry": { mode, lines } },
@@ -40,6 +38,7 @@ export function GeometryTool({ evidenceId }: { evidenceId: string }) {
       setPending(null);
     } else setPending([x, y]);
   }
+  if (media.expired) return <Expired onReload={media.reload} label="the image" />;
   const w = img.current?.naturalWidth || 1;
   const h = img.current?.naturalHeight || 1;
   return (

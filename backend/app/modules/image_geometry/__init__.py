@@ -16,7 +16,7 @@ from typing import Any
 
 import numpy as np
 
-from app.modules._common.imaging import load_rgb, r6, save_png
+from app.modules._common.imaging import Array, load_rgb, r6, save_png
 from app.modules.base import (
     Artefact,
     ArtefactKind,
@@ -29,7 +29,7 @@ from app.modules.base import (
 )
 
 
-def common_point(lines: np.ndarray) -> np.ndarray:
+def common_point(lines: Array) -> Array:
     """Least-squares intersection (homogeneous) of lines given as rows x1, y1, x2, y2."""
     h = np.array([np.cross([x1, y1, 1.0], [x2, y2, 1.0]) for x1, y1, x2, y2 in lines])
     h /= np.linalg.norm(h[:, :2], axis=1, keepdims=True)
@@ -37,7 +37,29 @@ def common_point(lines: np.ndarray) -> np.ndarray:
     return vt[-1]
 
 
-def angle_errors(lines: np.ndarray, point: np.ndarray) -> np.ndarray:
+def robust_point(lines: Array, tol_deg: float) -> tuple[Array, Array]:
+    """Common point most lines agree with: best pairwise intersection, refined on its inliers.
+
+    A plain least-squares fit lets one wrong line drag the point and make good lines look
+    inconsistent; testing every pair's intersection avoids that.
+    """
+    best: Array = common_point(lines)
+    best_key: tuple[int, float] = (-1, float("inf"))
+    for i in range(len(lines)):
+        for j in range(i + 1, len(lines)):
+            cand = common_point(lines[[i, j]])
+            errs = angle_errors(lines, cand)
+            n_in = int((errs <= tol_deg).sum())
+            key = (n_in, float(np.sort(errs)[: max(2, n_in)].mean()))
+            if key[0] > best_key[0] or (key[0] == best_key[0] and key[1] < best_key[1]):
+                best, best_key = cand, key
+    inliers = angle_errors(lines, best) <= tol_deg
+    if inliers.sum() >= 2:
+        best = common_point(lines[inliers])
+    return best, angle_errors(lines, best)
+
+
+def angle_errors(lines: Array, point: Array) -> Array:
     """Angle (degrees) between each line and the direction from its midpoint to the common point."""
     errs = []
     for x1, y1, x2, y2 in lines:
@@ -47,7 +69,8 @@ def angle_errors(lines: np.ndarray, point: np.ndarray) -> np.ndarray:
             to = point[:2]
         else:
             to = point[:2] / point[2] - mid
-        cos = abs(float(np.dot(d, to))) / max(np.linalg.norm(d) * np.linalg.norm(to), 1e-12)
+        norm = float(np.linalg.norm(d)) * float(np.linalg.norm(to))
+        cos = abs(float(np.dot(d, to))) / max(norm, 1e-12)
         errs.append(float(np.degrees(np.arccos(min(1.0, cos)))))
     return np.array(errs)
 
@@ -56,8 +79,8 @@ class Geometry(ModuleBase):
     id = "image.geometry"
     version = "1.0.0"
     name = "Perspective / shadow consistency (examiner-drawn)"
-    description = ("Least-squares vanishing point (perspective) or light-source projection (shadow) of examiner-drawn "
-                   "lines, with each line's angular error.")
+    description = ("Robust vanishing point (perspective) or light-source projection (shadow) of examiner-drawn lines "
+                   "(best pairwise intersection refined by least squares on agreeing lines), with each line's angular error.")
     family = Family.CLASSICAL
     tier = 2
     default_params = {"mode": "perspective", "lines": [], "tolerance_deg": 2.0}  # noqa: RUF012
@@ -89,9 +112,8 @@ class Geometry(ModuleBase):
         lines = np.array(p["lines"], dtype=np.float64).reshape(-1, 4)
         if len(lines) < 3:
             raise ValueError("draw at least 3 lines (4 or more recommended)")
-        point = common_point(lines)
-        errs = angle_errors(lines, point)
         tol = float(p["tolerance_deg"])
+        point, errs = robust_point(lines, tol)
         rgb, info = load_rgb(item.path)
         out = rgb.copy()
         for (x1, y1, x2, y2), e in zip(lines, errs, strict=True):
