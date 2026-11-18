@@ -15,10 +15,11 @@ from app.db.models import EvidenceItem, EvidenceKind, EvidenceReference, Job, Jo
 from app.db.session import after_commit
 from app.modules.base import AnalysisModule, MediaType
 from app.modules.registry import all_modules, get_module
+from app.modules.status import effective, module_queue
 
 
 def queue_name(module: AnalysisModule) -> str:
-    return "gpu" if module.requires_gpu else "cpu"
+    return module_queue(module)
 
 
 def _dispatch(job_id: uuid.UUID, queue: str) -> None:
@@ -109,13 +110,14 @@ def triage_module_ids(item: EvidenceItem) -> tuple[list[str], list[str]]:
     """Tier 1 modules to run automatically on ingest: (to_run, skipped_unavailable)."""
     if item.kind == EvidenceKind.REFERENCE:
         return ["integrity.hash"], []
+    candidates = [m for m in all_modules().values()
+                  if m.tier == 1 and not m.requires_reference and MediaType(item.media_type) in m.media_types]
+    status = effective(candidates)
     run, skipped = [], []
-    for module in all_modules().values():
-        if module.tier != 1 or module.requires_reference:
-            continue
-        if MediaType(item.media_type) not in module.media_types:
-            continue
-        if module.availability().available:
+    for module in candidates:
+        st = status[module.id]
+        # Unknown (worker not reported yet) is queued: the worker decides and records it.
+        if st.availability.available or not st.known:
             run.append(module.id)
         else:
             skipped.append(module.id)

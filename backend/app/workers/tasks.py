@@ -20,6 +20,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from celery.signals import worker_ready
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -49,6 +50,7 @@ from app.modules.base import (
     WorkingCopy,
 )
 from app.modules.registry import get_module
+from app.modules.status import report_worker_status
 from app.modules.weights import WeightsError
 from app.workers.celery_app import celery_app
 
@@ -64,6 +66,14 @@ EXTENSIONS = {
 
 class IntegrityFailure(Exception):
     """A working copy does not match the hash recorded at ingest."""
+
+
+@worker_ready.connect
+def _report_status(**_: Any) -> None:
+    """Tell the API which modules this worker can run (tools/weights present)."""
+    queue = get_settings().worker_queue
+    if queue:
+        report_worker_status(queue)
 
 
 @celery_app.task(name="safeface.run_analysis")  # type: ignore[misc]

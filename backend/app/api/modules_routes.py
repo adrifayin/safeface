@@ -9,6 +9,7 @@ from app.api.schemas import ModuleOut
 from app.core.policy import Action
 from app.modules.base import FAMILY_LABELS, FAMILY_ORDER
 from app.modules.registry import all_modules
+from app.modules.status import effective
 from app.modules.weights import load_registry
 
 router = APIRouter(tags=["modules"])
@@ -18,8 +19,10 @@ def module_list() -> list[ModuleOut]:
     registry = load_registry()
     out = []
     order = {f: i for i, f in enumerate(FAMILY_ORDER)}
-    for m in sorted(all_modules().values(), key=lambda m: (order[m.family], m.tier, m.id)):
-        avail = m.availability()
+    mods = sorted(all_modules().values(), key=lambda m: (order[m.family], m.tier, m.id))
+    status = effective(mods)
+    for m in mods:
+        avail = status[m.id].availability
         validation = [
             {"weights": n, **registry[n].validation} for n in m.required_weights if n in registry
         ]

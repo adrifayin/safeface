@@ -1,12 +1,13 @@
 /** Screen 6: report preview + export, and BSA s.63(4) Part A data view. */
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { Report } from "@/lib/types";
+import type { CaseDetail, Report } from "@/lib/types";
+import { Empty, Hash, PageHeader } from "@/components/page";
 import { formatTime } from "@/lib/utils";
 import { hasRole, useMe } from "@/components/Layout";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ErrorBox, Mono, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ErrorBox, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 
 async function sha256Hex(blob: Blob): Promise<string> {
   const d = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
@@ -18,6 +19,7 @@ export function ReportPage() {
   const me = useMe();
   const qc = useQueryClient();
   const canGenerate = hasRole(me, "examiner");
+  const caseQ = useQuery({ queryKey: ["case", caseId], queryFn: () => api.get<CaseDetail>(`/cases/${caseId}`) });
   const reports = useQuery({ queryKey: ["reports", caseId], queryFn: () => api.get<Report[]>(`/cases/${caseId}/reports`) });
   const preview = useQuery({ queryKey: ["preview", caseId], enabled: canGenerate, queryFn: () => api.get<string>(`/cases/${caseId}/report-preview`) });
   const s63 = useQuery({ queryKey: ["s63", caseId], enabled: canGenerate, queryFn: () => api.get<Record<string, unknown>>(`/cases/${caseId}/s63-data`) });
@@ -40,7 +42,9 @@ export function ReportPage() {
 
   return (
     <div className="space-y-4">
-      <Link to={`/cases/${caseId}`} className="text-sm text-sky-800 underline">← Case</Link>
+      <PageHeader crumbs={[{ label: "Cases", to: "/" }, { label: caseQ.data?.case_no ?? "Case", to: `/cases/${caseId}` }, { label: "Reports" }]}
+                  title="Reports and s.63(4) data"
+                  subtitle="A report is FINAL only when every questioned item has a supervisor-approved conclusion; otherwise it is marked DRAFT." />
       <Card>
         <CardHeader className="flex items-center gap-3">
           <CardTitle>Reports</CardTitle>
@@ -52,13 +56,13 @@ export function ReportPage() {
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <ErrorBox error={generate.error} />
-          {reports.data?.length === 0 && <p className="text-slate-500">No reports yet.</p>}
+          {reports.data?.length === 0 && <Empty title="No reports yet.">{canGenerate ? "Generating a report first re-verifies every evidence hash." : ""}</Empty>}
           {reports.data?.map((r) => (
             <div key={r.id} className="flex flex-wrap items-center gap-2 rounded border p-2" data-testid={`report-v${r.version}`}>
               <strong>Version {r.version}</strong>
               <Badge tone={r.status === "final" ? "ok" : "warn"}>{r.status}</Badge>
               <span className="text-xs text-slate-500">{formatTime(r.generated_at)}</span>
-              <span className="text-xs">PDF SHA-256 <Mono>{r.pdf_sha256}</Mono></span>
+              <span className="text-xs">PDF SHA-256 <Hash value={r.pdf_sha256} full /></span>
               <Button size="sm" variant="outline" className="ml-auto" onClick={() => void download(r)}>Download PDF</Button>
               {checks[r.id] && <span className="w-full text-xs text-emerald-800" data-testid="pdf-hash-check">{checks[r.id]}</span>}
             </div>

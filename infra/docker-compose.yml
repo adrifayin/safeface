@@ -169,7 +169,9 @@ services:
     <<: *hardening
     command: ["celery", "-A", "app.workers.celery_app:celery_app", "worker", "--loglevel=INFO",
               "--concurrency=2", "-Q", "cpu", "-n", "cpu@%h"]
-    environment: *backend-env
+    environment:
+      <<: *backend-env
+      SAFEFACE_WORKER_QUEUE: cpu
     volumes: ["../models:/models:ro"]
     tmpfs: ["/tmp:size=512m", "/work:size=8g,uid=10001,gid=10001,mode=0700"]
     networks: [backend]
@@ -189,7 +191,9 @@ services:
     <<: *hardening
     command: ["celery", "-A", "app.workers.celery_app:celery_app", "worker", "--loglevel=INFO",
               "--concurrency=1", "-Q", "gpu", "-n", "gpu@%h"]
-    environment: *backend-env
+    environment:
+      <<: *backend-env
+      SAFEFACE_WORKER_QUEUE: gpu
     volumes: ["../models:/models:ro"]
     tmpfs: ["/tmp:size=1g", "/work:size=8g,uid=10001,gid=10001,mode=0700"]
     networks: [backend]

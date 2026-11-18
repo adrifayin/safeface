@@ -6,19 +6,23 @@ import { api } from "@/lib/api";
 import type { Conclusion } from "@/lib/types";
 import { formatTime } from "@/lib/utils";
 import { useMe } from "@/components/Layout";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ErrorBox, Textarea } from "@/components/ui";
+import { Badge, Button, Card, CardContent, ErrorBox, Textarea } from "@/components/ui";
+import { Empty, Loading, PageHeader } from "@/components/page";
 
 export function ApprovalsPage() {
   const pending = useQuery({ queryKey: ["pending"], queryFn: () => api.get<Conclusion[]>("/approvals/pending") });
   return (
-    <Card>
-      <CardHeader><CardTitle>Conclusions awaiting your approval</CardTitle></CardHeader>
-      <CardContent className="space-y-3">
-        <ErrorBox error={pending.error} />
-        {pending.data?.length === 0 && <p className="text-sm text-slate-500">Nothing pending.</p>}
-        {pending.data?.map((c) => <ApprovalItem key={c.id} c={c} />)}
-      </CardContent>
-    </Card>
+    <div>
+      <PageHeader title="Approvals" subtitle="Examiner conclusions awaiting approval in cases where you hold the approve permission." />
+      <Card>
+        <CardContent className="space-y-3">
+          <ErrorBox error={pending.error} />
+          {pending.isLoading && <Loading />}
+          {pending.data?.length === 0 && <Empty title="Nothing pending.">New conclusions appear here as examiners record them.</Empty>}
+          {pending.data?.map((c) => <ApprovalItem key={c.id} c={c} />)}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -39,6 +43,7 @@ function ApprovalItem({ c }: { c: Conclusion }) {
         <span>— {c.scale_label}</span>
         <Link className="ml-auto text-sky-800 underline" to={`/evidence/${c.evidence_id}`}>Review findings</Link>
       </div>
+      <p className="mt-2 text-xs text-slate-500">Review the findings before approving. Approval is recorded permanently and cannot be undone.</p>
       <p className="mt-2">{c.rationale}</p>
       <p className="text-xs text-slate-500">Recorded by {c.author_name}, {formatTime(c.created_at)}</p>
       {own ? <p className="mt-2 text-xs text-red-700">You wrote this conclusion; another supervisor must approve it.</p> : (

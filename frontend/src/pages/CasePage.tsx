@@ -1,48 +1,84 @@
 /** Screen 3: case page — evidence with hashes, upload, references, custody, members. */
-import { useState, type DragEvent } from "react";
+import { useEffect, useState, type DragEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileUp, ShieldAlert, ShieldCheck } from "lucide-react";
+import { FileText, FileUp, History, Microscope, Plus, ShieldAlert, ShieldCheck } from "lucide-react";
 import { api, sha256OfFile, uploadEvidence } from "@/lib/api";
 import type { CaseDetail, CustodyEntry, Evidence, EvidenceMetadata, Me } from "@/lib/types";
 import { formatBytes, formatTime } from "@/lib/utils";
 import { hasRole, useMe } from "@/components/Layout";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ErrorBox, Input, Label, Mono, Select } from "@/components/ui";
+import { Empty, Facts, Hash, Loading, Notice, PageHeader } from "@/components/page";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ErrorBox, Input, Label, Select } from "@/components/ui";
 
 export function CasePage() {
   const { caseId = "" } = useParams();
   const me = useMe();
   const detail = useQuery({ queryKey: ["case", caseId], queryFn: () => api.get<CaseDetail>(`/cases/${caseId}`) });
-  if (detail.isLoading) return <div>Loading…</div>;
-  if (detail.error || !detail.data) return <ErrorBox error={detail.error ?? "not found"} />;
+  const [showUpload, setShowUpload] = useState<boolean | null>(null);
+  // Decide once, on first load: an empty case opens the upload panel; afterwards only the user closes it.
+  useEffect(() => {
+    if (detail.data && showUpload === null) setShowUpload(detail.data.evidence.length === 0);
+  }, [detail.data, showUpload]);
+  if (detail.isLoading) return <Loading />;
+  if (detail.error || !detail.data) return <ErrorBox error={detail.error ?? "Case not found"} />;
   const c = detail.data;
-  const canUpload = c.my_permission !== "view" && hasRole(me, "investigator", "examiner");
+  const canUpload = !!c.my_permission && c.my_permission !== "view" && hasRole(me, "investigator", "examiner");
+  const uploadOpen = canUpload && showUpload === true;
   const questioned = c.evidence.filter((e) => e.kind === "questioned");
+  const references = c.evidence.filter((e) => e.kind === "reference");
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-xl font-semibold">Case {c.case_no}</h1>
-        <span className="text-sm text-slate-600">{c.crime_head} · FIR {c.fir_no ?? "—"} · IO {c.investigating_officer}</span>
-        <div className="ml-auto flex gap-2">
-          {hasRole(me, "examiner", "supervisor", "auditor") && (
-            <Button asChild variant="outline"><Link to={`/cases/${c.id}/report`}>Reports &amp; s.63(4) data</Link></Button>
+    <div>
+      <PageHeader
+        crumbs={[{ label: "Cases", to: "/" }, { label: c.case_no }]}
+        title={`Case ${c.case_no}`}
+        subtitle={c.crime_head}
+        actions={<>
+          {canUpload && !uploadOpen && <Button onClick={() => setShowUpload(true)}><Plus className="h-4 w-4" /> Add evidence</Button>}
+          {hasRole(me, "examiner", "supervisor", "auditor") && c.my_permission && (
+            <Button asChild variant="outline"><Link to={`/cases/${c.id}/report`}><FileText className="h-4 w-4" /> Reports &amp; s.63(4)</Link></Button>
           )}
-        </div>
-      </div>
-      <div className="grid gap-4 xl:grid-cols-[1fr_420px]">
-        <Card>
-          <CardHeader><CardTitle>Evidence</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            {c.evidence.length === 0 && <p className="text-sm text-slate-500">No evidence uploaded.</p>}
-            {c.evidence.map((e) => <EvidenceRow key={e.id} e={e} all={c.evidence} me={me} canLink={canUpload} />)}
-          </CardContent>
-        </Card>
+        </>}
+      />
+      {!c.my_permission && (
+        <div className="mb-4"><Notice>You are viewing this case as a supervisor without membership. Add yourself or others under
+          “Case members”; evidence media opens only for members.</Notice></div>
+      )}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
         <div className="space-y-4">
-          {canUpload && <UploadPanel caseId={c.id} questioned={questioned} />}
+          <Card>
+            <CardContent>
+              <Facts items={[
+                ["FIR number", c.fir_no], ["Investigating officer", c.investigating_officer],
+                ["Created", formatTime(c.created_at)], ["Status", <Badge key="s" tone="info">{c.status}</Badge>],
+                ["Examination request", c.description],
+              ]} />
+            </CardContent>
+          </Card>
+          <EvidenceSection title="Questioned items" items={questioned} all={c.evidence} me={me} canLink={canUpload}
+                           empty={canUpload ? "Upload the image or video to be examined." : "No questioned items yet."} />
+          <EvidenceSection title="Reference items" items={references} all={c.evidence} me={me} canLink={false}
+                           empty="Optional: the complainant's original photos or images from a suspect device, for comparison." />
+        </div>
+        <div className="space-y-4">
+          {uploadOpen && <UploadPanel caseId={c.id} questioned={questioned} onClose={() => setShowUpload(false)} />}
           <Members c={c} />
         </div>
       </div>
     </div>
+  );
+}
+
+function EvidenceSection({ title, items, all, me, canLink, empty }: {
+  title: string; items: Evidence[]; all: Evidence[]; me: Me | null; canLink: boolean; empty: string;
+}) {
+  return (
+    <Card>
+      <CardHeader><CardTitle>{title} <span className="font-normal text-slate-500">({items.length})</span></CardTitle></CardHeader>
+      <CardContent className="space-y-3">
+        {items.length === 0 ? <Empty title="None">{empty}</Empty>
+          : items.map((e) => <EvidenceRow key={e.id} e={e} all={all} me={me} canLink={canLink} />)}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -61,40 +97,46 @@ function EvidenceRow({ e, all, me, canLink }: { e: Evidence; all: Evidence[]; me
   const [refPick, setRefPick] = useState("");
   const link = useMutation({
     mutationFn: () => api.post(`/evidence/${e.id}/references`, { reference_ids: [refPick] }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["case", e.case_id] }),
+    onSuccess: () => { setRefPick(""); void qc.invalidateQueries({ queryKey: ["case", e.case_id] }); },
   });
   const v = e.last_verification;
+  const linked = (e.kind === "questioned" ? e.reference_ids : e.questioned_ids)
+    .map((r) => all.find((x) => x.id === r)?.original_filename ?? r);
   return (
-    <div className="rounded-md border p-3" data-testid={`evidence-${e.original_filename}`}>
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={e.kind === "questioned" ? "warn" : "info"}>{e.kind}</Badge>
-        <strong>{e.original_filename}</strong>
-        <span className="text-xs text-slate-500">{e.detected_mime} · {formatBytes(e.size_bytes)} · ingested {formatTime(e.ingested_at)}</span>
+    <div className="rounded-md border border-slate-200 p-3" data-testid={`evidence-${e.original_filename}`}>
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="min-w-0">
+          <div className="font-medium text-slate-900">{e.original_filename}</div>
+          <div className="text-xs text-slate-500">{e.detected_mime} · {formatBytes(e.size_bytes)} · ingested {formatTime(e.ingested_at)}</div>
+        </div>
         {v && (v.ok
-          ? <Badge tone="ok"><ShieldCheck className="mr-1 h-3 w-3" />hash verified {formatTime(v.verified_at)}</Badge>
-          : <Badge tone="bad"><ShieldAlert className="mr-1 h-3 w-3" />HASH MISMATCH {formatTime(v.verified_at)}</Badge>)}
-        <div className="ml-auto flex gap-2">
+          ? <Badge tone="ok" title={`Last verified ${formatTime(v.verified_at)}`}><ShieldCheck className="mr-1 h-3 w-3" />Hash verified</Badge>
+          : <Badge tone="bad"><ShieldAlert className="mr-1 h-3 w-3" />HASH MISMATCH</Badge>)}
+        <div className="ml-auto flex flex-wrap gap-2">
           {e.kind === "questioned" && hasRole(me, "investigator", "examiner", "supervisor") && (
-            <Button asChild size="sm"><Link to={`/evidence/${e.id}`}>Open workbench</Link></Button>
+            <Button asChild size="sm"><Link to={`/evidence/${e.id}`}><Microscope className="h-3.5 w-3.5" /> Open workbench</Link></Button>
           )}
           {hasRole(me, "examiner", "supervisor") && (
-            <Button size="sm" variant="outline" onClick={() => verify.mutate()} disabled={verify.isPending}>Re-verify hash</Button>
+            <Button size="sm" variant="outline" onClick={() => verify.mutate()} disabled={verify.isPending}>
+              {verify.isPending ? "Verifying…" : "Re-verify hash"}
+            </Button>
           )}
-          <Button size="sm" variant="ghost" onClick={() => setShowCustody((s) => !s)}>Custody log</Button>
+          <Button size="sm" variant="ghost" onClick={() => setShowCustody((s) => !s)}><History className="h-3.5 w-3.5" /> Custody</Button>
         </div>
       </div>
-      <div className="mt-2 grid grid-cols-[70px_1fr] gap-x-2 text-xs">
-        <span className="text-slate-500">SHA-256</span><Mono>{e.sha256}</Mono>
-        <span className="text-slate-500">MD5</span><Mono>{e.md5}</Mono>
-        <span className="text-slate-500">Source</span>
-        <span>{[e.source_platform, e.source_url, e.source_device && `device: ${e.source_device}`, e.collected_by && `collected by ${e.collected_by}`, e.complainant && `complainant: ${e.complainant}`].filter(Boolean).join(" · ") || "—"}</span>
-        {e.kind === "questioned" && <><span className="text-slate-500">References</span>
-          <span>{e.reference_ids.map((r) => all.find((x) => x.id === r)?.original_filename ?? r).join(", ") || "none"}</span></>}
+      <div className="mt-2">
+        <Facts items={[
+          ["SHA-256", <Hash key="s" value={e.sha256} full />],
+          ["MD5", <Hash key="m" value={e.md5} full />],
+          ["Source", [e.source_platform, e.source_url, e.source_device && `device: ${e.source_device}`].filter(Boolean).join(" · ")],
+          ["Collected", [e.collected_by, e.collected_at && formatTime(e.collected_at), e.complainant && `complainant: ${e.complainant}`].filter(Boolean).join(" · ")],
+          [e.kind === "questioned" ? "References" : "Reference for", linked.join(", ") || "none"],
+        ]} />
       </div>
       {e.kind === "questioned" && canLink && refs.length > 0 && (
         <div className="mt-2 flex gap-2">
           <Select value={refPick} onChange={(ev) => setRefPick(ev.target.value)} className="max-w-xs">
-            <option value="">Attach reference…</option>
+            <option value="">Attach a reference item…</option>
             {refs.map((r) => <option key={r.id} value={r.id}>{r.original_filename}</option>)}
           </Select>
           <Button size="sm" variant="outline" disabled={!refPick || link.isPending} onClick={() => link.mutate()}>Attach</Button>
@@ -102,25 +144,27 @@ function EvidenceRow({ e, all, me, canLink }: { e: Evidence; all: Evidence[]; me
       )}
       <ErrorBox error={verify.error ?? link.error} />
       {showCustody && (
-        <div className="mt-2 max-h-72 overflow-auto rounded bg-slate-50 p-2">
-          <table className="w-full text-xs">
-            <thead className="text-left text-slate-500"><tr><th>#</th><th>Time</th><th>Actor</th><th>Action</th><th>Entry hash</th></tr></thead>
-            <tbody>
-              {custody.data?.map((x) => (
-                <tr key={x.seq} className="border-t align-top">
-                  <td>{x.seq}</td><td className="whitespace-nowrap pr-2">{formatTime(x.ts)}</td><td className="pr-2">{x.actor}</td>
-                  <td className="pr-2">{x.action}</td><td><Mono>{x.entry_hash.slice(0, 16)}…</Mono></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mt-3 max-h-72 overflow-auto rounded border bg-slate-50">
+          {custody.isLoading ? <Loading /> : (
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-slate-100 text-left text-slate-500"><tr><th className="p-1.5">#</th><th>Time</th><th>Who</th><th>Action</th><th>Entry hash</th></tr></thead>
+              <tbody>
+                {custody.data?.map((x) => (
+                  <tr key={x.seq} className="border-t align-top">
+                    <td className="p-1.5">{x.seq}</td><td className="whitespace-nowrap pr-2">{formatTime(x.ts)}</td><td className="pr-2">{x.actor}</td>
+                    <td className="pr-2">{x.action}</td><td><Hash value={x.entry_hash} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function UploadPanel({ caseId, questioned }: { caseId: string; questioned: Evidence[] }) {
+function UploadPanel({ caseId, questioned, onClose }: { caseId: string; questioned: Evidence[]; onClose: () => void }) {
   const qc = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
@@ -152,7 +196,7 @@ function UploadPanel({ caseId, questioned }: { caseId: string; questioned: Evide
         uploadEvidence(caseId, file, { ...(clean as unknown as EvidenceMetadata), filename: file.name, kind: meta.kind }, setProgress),
       ]);
       const match = local === null ? "browser hash skipped (large file)" : local === res.sha256 ? "matches the hash computed in your browser" : "DOES NOT MATCH the browser hash";
-      setResult(`Ingested. SHA-256 ${res.sha256} — ${match}. ${res.triage_job_ids.length} Tier 1 job(s) queued.`);
+      setResult(`Ingested ${res.evidence.original_filename}. SHA-256 ${res.sha256} — ${match}. ${res.triage_job_ids.length} automatic check(s) started.`);
       setFile(null);
       void qc.invalidateQueries({ queryKey: ["case", caseId] });
     } catch (e) {
@@ -164,45 +208,60 @@ function UploadPanel({ caseId, questioned }: { caseId: string; questioned: Evide
 
   return (
     <Card>
-      <CardHeader><CardTitle>Upload evidence</CardTitle></CardHeader>
+      <CardHeader className="flex items-center">
+        <CardTitle>Add evidence</CardTitle>
+        <Button size="sm" variant="ghost" className="ml-auto" onClick={onClose}>Close</Button>
+      </CardHeader>
       <CardContent className="space-y-3">
-        <label
-          onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-          onDragLeave={() => setDrag(false)}
-          onDrop={onDrop}
-          className={`flex cursor-pointer flex-col items-center gap-2 rounded-md border-2 border-dashed p-6 text-center text-sm ${drag ? "border-slate-700 bg-slate-100" : "border-slate-300"}`}
-        >
-          <FileUp className="h-6 w-6" />
-          {file ? <span><strong>{file.name}</strong> ({formatBytes(file.size)})</span> : <span>Drag a file here or click to choose (images, video, audio; max 4 GB)</span>}
-          <input type="file" className="hidden" data-testid="file-input" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          <div><Label>Kind</Label>
-            <Select value={meta.kind} onChange={(e) => setMeta({ ...meta, kind: e.target.value as "questioned" | "reference" })} data-testid="kind-select">
-              <option value="questioned">Questioned item</option>
-              <option value="reference">Reference (e.g. victim's original)</option>
-            </Select></div>
-          <div><Label>Source platform</Label><Input value={meta.source_platform ?? ""} onChange={set("source_platform")} placeholder="WhatsApp, Instagram…" /></div>
-          <div className="col-span-2"><Label>Source URL</Label><Input value={meta.source_url ?? ""} onChange={set("source_url")} placeholder="https://…" /></div>
-          <div><Label>Source device</Label><Input value={meta.source_device ?? ""} onChange={set("source_device")} /></div>
-          <div><Label>Complainant</Label><Input value={meta.complainant ?? ""} onChange={set("complainant")} /></div>
-          <div><Label>Collected by</Label><Input value={meta.collected_by ?? ""} onChange={set("collected_by")} /></div>
-          <div><Label>Collected at</Label><Input type="datetime-local" value={meta.collected_at ?? ""} onChange={set("collected_at")} /></div>
+        <div>
+          <Label>1. Kind of item</Label>
+          <Select value={meta.kind} onChange={(e) => setMeta({ ...meta, kind: e.target.value as "questioned" | "reference" })} data-testid="kind-select">
+            <option value="questioned">Questioned item (to be examined)</option>
+            <option value="reference">Reference item (e.g. complainant's original photo)</option>
+          </Select>
         </div>
         {meta.kind === "reference" && questioned.length > 0 && (
-          <div><Label>Reference for</Label>
+          <div><Label>Reference for (hold Ctrl to select several)</Label>
             <Select multiple value={meta.reference_for} className="h-20" data-testid="reference-for"
                     onChange={(e) => setMeta({ ...meta, reference_for: Array.from(e.target.selectedOptions).map((o) => o.value) })}>
               {questioned.map((q) => <option key={q.id} value={q.id}>{q.original_filename}</option>)}
             </Select></div>
         )}
+        <div>
+          <Label>2. File</Label>
+          <label
+            onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+            onDragLeave={() => setDrag(false)}
+            onDrop={onDrop}
+            className={`flex cursor-pointer flex-col items-center gap-1 rounded-md border-2 border-dashed p-5 text-center text-sm ${drag ? "border-slate-700 bg-slate-100" : "border-slate-300 hover:border-slate-500"}`}
+          >
+            <FileUp className="h-6 w-6 text-slate-500" />
+            {file ? <span><strong>{file.name}</strong> ({formatBytes(file.size)})</span>
+              : <><span>Drag a file here, or click to choose</span><span className="text-xs text-slate-500">JPEG, PNG, HEIC, WEBP · MP4, MOV, MKV, WEBM · WAV, MP3, M4A, OGG · up to 4 GB</span></>}
+            <input type="file" className="hidden" data-testid="file-input" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          </label>
+        </div>
+        <details className="rounded border border-slate-200 p-2 text-sm" open>
+          <summary className="cursor-pointer font-medium text-slate-700">3. Source and collection (recommended)</summary>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <div><Label>Platform</Label><Input value={meta.source_platform ?? ""} onChange={set("source_platform")} placeholder="WhatsApp, Instagram…" /></div>
+            <div><Label>Source device</Label><Input value={meta.source_device ?? ""} onChange={set("source_device")} /></div>
+            <div className="col-span-2"><Label>Source URL</Label><Input value={meta.source_url ?? ""} onChange={set("source_url")} placeholder="https://…" /></div>
+            <div><Label>Complainant</Label><Input value={meta.complainant ?? ""} onChange={set("complainant")} /></div>
+            <div><Label>Collected by</Label><Input value={meta.collected_by ?? ""} onChange={set("collected_by")} /></div>
+            <div className="col-span-2"><Label>Collected at</Label><Input type="datetime-local" value={meta.collected_at ?? ""} onChange={set("collected_at")} /></div>
+          </div>
+        </details>
         {progress !== null && (
-          <div className="h-2 w-full rounded bg-slate-200"><div className="h-2 rounded bg-slate-800" style={{ width: `${Math.round(progress * 100)}%` }} /></div>
+          <div>
+            <div className="h-2 w-full rounded bg-slate-200"><div className="h-2 rounded bg-slate-800 transition-all" style={{ width: `${Math.round(progress * 100)}%` }} /></div>
+            <p className="mt-1 text-xs text-slate-500">Uploading and hashing… {Math.round(progress * 100)}%</p>
+          </div>
         )}
-        {result && <div className="rounded bg-emerald-50 p-2 text-sm text-emerald-900" data-testid="upload-result">{result}</div>}
+        {result && <div className="break-all rounded bg-emerald-50 p-2 text-sm text-emerald-900" data-testid="upload-result">{result}</div>}
         <ErrorBox error={error} />
-        <Button onClick={() => void submit()} disabled={!file || progress !== null} data-testid="upload-button">Hash &amp; ingest</Button>
-        <p className="text-xs text-slate-500">The original is hashed (SHA-256 + MD5) while streaming, stored write-once, and never modified. Analysis runs on a verified working copy.</p>
+        <Button className="w-full" onClick={() => void submit()} disabled={!file || progress !== null} data-testid="upload-button">Hash &amp; ingest</Button>
+        <p className="text-xs text-slate-500">The original is hashed (SHA-256 + MD5) while streaming, stored write-once and never modified. Analysis runs on a verified working copy.</p>
       </CardContent>
     </Card>
   );
@@ -216,23 +275,31 @@ function Members({ c }: { c: CaseDetail }) {
   const [pick, setPick] = useState({ user_id: "", permission: "analyse" });
   const add = useMutation({
     mutationFn: () => api.post(`/cases/${c.id}/members`, pick),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["case", c.id] }),
+    onSuccess: () => { setPick({ user_id: "", permission: "analyse" }); void qc.invalidateQueries({ queryKey: ["case", c.id] }); },
   });
   return (
     <Card>
       <CardHeader><CardTitle>Case members</CardTitle></CardHeader>
       <CardContent className="space-y-2 text-sm">
-        {c.members.map((m) => <div key={m.user_id} className="flex justify-between"><span>{m.display_name} ({m.username})</span><Badge>{m.permission}</Badge></div>)}
+        {c.members.map((m) => (
+          <div key={m.user_id} className="flex items-center justify-between gap-2">
+            <span>{m.display_name} ({m.username})</span><Badge>{m.permission}</Badge>
+          </div>
+        ))}
         {isSup && (
-          <div className="flex gap-2 pt-2">
+          <div className="space-y-2 border-t pt-3">
+            <Label>Add or change a member</Label>
             <Select value={pick.user_id} onChange={(e) => setPick({ ...pick, user_id: e.target.value })} data-testid="member-user">
-              <option value="">Add member…</option>
+              <option value="">Choose a person…</option>
               {dir.data?.filter((u) => !u.roles.every((r) => r === "admin")).map((u) => <option key={u.id} value={u.id}>{u.display_name} ({u.roles.join(", ")})</option>)}
             </Select>
-            <Select value={pick.permission} onChange={(e) => setPick({ ...pick, permission: e.target.value })} className="w-28" data-testid="member-permission">
-              <option value="view">view</option><option value="analyse">analyse</option><option value="approve">approve</option>
-            </Select>
-            <Button size="sm" disabled={!pick.user_id} onClick={() => add.mutate()}>Add</Button>
+            <div className="flex gap-2">
+              <Select value={pick.permission} onChange={(e) => setPick({ ...pick, permission: e.target.value })} data-testid="member-permission">
+                <option value="view">View</option><option value="analyse">Analyse</option><option value="approve">Approve</option>
+              </Select>
+              <Button size="sm" disabled={!pick.user_id || add.isPending} onClick={() => add.mutate()}>Add</Button>
+            </div>
+            <p className="text-xs text-slate-500">People appear here after their first sign-in. Administrators cannot be added to cases.</p>
           </div>
         )}
         <ErrorBox error={add.error} />

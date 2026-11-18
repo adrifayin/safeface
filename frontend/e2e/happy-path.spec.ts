@@ -72,6 +72,7 @@ test("upload → triage → conclusion → approval → verified PDF", async ({ 
 
   // --- Investigator: case + evidence -------------------------------------------
   const ivan = await loginAs(browser, "ivan.investigator");
+  await ivan.getByRole("button", { name: "New case" }).click();
   await ivan.locator("#case_no").fill(caseNo);
   await ivan.locator("#crime_head").fill("IT Act s.66E (e2e)");
   await ivan.locator("#io").fill("SI Playwright");
@@ -121,6 +122,7 @@ test("upload → triage → conclusion → approval → verified PDF", async ({ 
   await expect(esha.getByTestId("module-image.source_match").getByText("succeeded")).toBeVisible({ timeout: 120_000 });
   await expect(esha.getByTestId("module-image.source_match").getByText("inlier_count")).toBeVisible();
 
+  await esha.getByTestId("tab-conclusion").click();
   await esha.getByTestId("conclusion-scale").selectOption("moderate_support_manipulation");
   await esha.getByTestId("conclusion-rationale").fill(
     "Source matching against the complainant's original localises two changed regions; noise map agrees.");
@@ -147,6 +149,7 @@ test("upload → triage → conclusion → approval → verified PDF", async ({ 
 
   // --- Audit chain still verifies ------------------------------------------------
   await suku.goto("/admin");
+  await suku.getByRole("tab", { name: "Audit chain" }).click();
   await suku.getByTestId("verify-audit").click();
   await expect(suku.getByTestId("audit-ok")).toContainText("Intact");
 

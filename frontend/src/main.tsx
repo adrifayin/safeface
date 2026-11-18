@@ -2,9 +2,9 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./index.css";
-import { AuthGate, Layout } from "@/components/Layout";
+import { AuthGate, Home, Layout } from "@/components/Layout";
 import { userManager } from "@/lib/auth";
 import { CasesPage } from "@/pages/CasesPage";
 import { CasePage } from "@/pages/CasePage";
@@ -22,7 +22,10 @@ const queryClient = new QueryClient({
 function Callback() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+  const started = useRef(false);
   useEffect(() => {
+    if (started.current) return; // the authorization code may be redeemed only once
+    started.current = true;
     userManager
       .signinRedirectCallback()
       .then(async (user) => {
@@ -40,7 +43,7 @@ function App() {
     <Routes>
       <Route path="/callback" element={<Callback />} />
       <Route element={<AuthGate><Layout /></AuthGate>}>
-        <Route path="/" element={<CasesPage />} />
+        <Route path="/" element={<Home cases={<CasesPage />} />} />
         <Route path="/cases/:caseId" element={<CasePage />} />
         <Route path="/cases/:caseId/report" element={<ReportPage />} />
         <Route path="/evidence/:evidenceId" element={<Workbench />} />

@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     # --- Job queue ------------------------------------------------------------
     redis_url: str = "redis://redis:6379/0"
     celery_eager: bool = False
+    worker_queue: str = ""  # set on worker containers: "cpu" or "gpu"
     job_soft_time_limit_s: int = 840
     job_time_limit_s: int = 900
 
