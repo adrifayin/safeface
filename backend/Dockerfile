@@ -27,8 +27,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN groupadd --system --gid 10001 safeface \
     && useradd --system --uid 10001 --gid safeface --home-dir /nonexistent --shell /usr/sbin/nologin safeface
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+COPY requirements.txt constraints.txt ./
+RUN pip install -r requirements.txt -c constraints.txt
 
 # ------------------------------------------------------------------ api -----
 FROM base AS api
@@ -61,7 +61,7 @@ RUN chmod 0755 /usr/local/bin/c2patool
 FROM base AS mlwheels
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
     && rm -rf /var/lib/apt/lists/*
-RUN pip install Cython==3.0.11 && pip wheel --no-build-isolation --no-deps -w /wheels insightface==0.7.3
+RUN pip install Cython==3.3.1 -c constraints.txt && pip wheel --no-build-isolation --no-deps -w /wheels insightface==0.7.3
 
 # --------------------------------------------------------------- worker -----
 FROM base AS worker
@@ -72,7 +72,7 @@ COPY --from=c2patool /usr/local/bin/c2patool /usr/local/bin/c2patool
 COPY --from=mlwheels /wheels /wheels
 COPY requirements-ml.txt .
 RUN pip install --index-url ${TORCH_INDEX} torch==2.5.1 torchvision==0.20.1 \
-    && pip install --find-links /wheels -r requirements-ml.txt \
+    && pip install --find-links /wheels -r requirements-ml.txt -c constraints.txt \
     && rm -rf /wheels
 COPY app ./app
 COPY alembic.ini .
@@ -84,7 +84,7 @@ CMD ["celery", "-A", "app.workers.celery_app:celery_app", "worker", "--loglevel=
 FROM worker AS test
 USER root
 COPY requirements-dev.txt .
-RUN pip install -r requirements-dev.txt
+RUN pip install -r requirements-dev.txt -c constraints.txt
 COPY tests ./tests
 COPY pyproject.toml .
 RUN mkdir -p /work && chown 10001:10001 /work

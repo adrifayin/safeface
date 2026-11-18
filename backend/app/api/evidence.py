@@ -36,6 +36,7 @@ from app.db.models import (
     HashVerification,
     WorkingCopyRow,
 )
+from app.db.session import session_scope
 from app.services.analysis import create_jobs, triage_module_ids
 from app.services.ingest import store_original_stream
 from app.services.verification import verify_item
@@ -73,17 +74,40 @@ async def upload_evidence(
     if declared and int(declared) > get_settings().max_upload_bytes:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "file exceeds the 4 GiB limit")
 
+    # Validate everything we can BEFORE anything reaches write-once storage.
+    await run_in_threadpool(_check_reference_for, db, case.id, meta)
+
     store = get_store()
     stored = await store_original_stream(store, case.id, request.stream())
-    return await run_in_threadpool(_record_ingest, db, me, case.id, meta, stored, store)
+    try:
+        return await run_in_threadpool(_record_ingest, db, me, case.id, meta, stored, store)
+    except BaseException as exc:
+        # The original is already object-locked and cannot be removed. Record the
+        # orphan in its own committed transaction so it is never unaccounted for.
+        await run_in_threadpool(_record_aborted_ingest, me.actor, case.id, meta, stored, exc)
+        raise
 
 
-def _record_ingest(db, me, case_id, meta, stored, store) -> UploadResult:  # type: ignore[no-untyped-def]
-    settings = get_settings()
+def _check_reference_for(db, case_id: uuid.UUID, meta: EvidenceMetadata) -> None:  # type: ignore[no-untyped-def]
     for qid in meta.reference_for:
         q = db.get(EvidenceItem, qid)
         if q is None or q.case_id != case_id or q.kind != EvidenceKind.QUESTIONED:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"bad reference_for {qid}")
+
+
+def _record_aborted_ingest(actor, case_id, meta, stored, exc) -> None:  # type: ignore[no-untyped-def]
+    with session_scope() as s:
+        audit.record(s, actor, "evidence.ingest_aborted", "case", case_id, {
+            "filename": meta.filename, "storage_key": stored.storage_key,
+            "storage_version_id": stored.version_id, "sha256": stored.digests.sha256,
+            "md5": stored.digests.md5, "size_bytes": stored.digests.size,
+            "reason": f"{exc.__class__.__name__}: {str(exc)[:300]}",
+        })
+
+
+def _record_ingest(db, me, case_id, meta, stored, store) -> UploadResult:  # type: ignore[no-untyped-def]
+    settings = get_settings()
+    _check_reference_for(db, case_id, meta)
     item = EvidenceItem(
         id=stored.evidence_id, case_id=case_id, kind=meta.kind.value,
         media_type=stored.detected.media_type.value, detected_mime=stored.detected.mime,

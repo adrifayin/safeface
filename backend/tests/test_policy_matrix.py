@@ -134,6 +134,16 @@ def test_only_supervisor_and_auditor_verify_audit(client: TestClient) -> None:
         assert client.get("/api/v1/audit/verify", headers=auth(user)).status_code == code, user
 
 
+def test_supervisor_oversight_sees_metadata_not_media(client: TestClient) -> None:
+    from tests.conftest import FIXTURES
+
+    case = new_case(client, supervisor=None)  # sara is not a member
+    ev = upload(client, case["id"], (FIXTURES / "scene_original.jpg").read_bytes()).json()["evidence"]
+    assert client.get(f"/api/v1/cases/{case['id']}", headers=auth("sara")).status_code == 200
+    assert client.get(f"/api/v1/evidence/{ev['id']}/content", headers=auth("sara")).status_code == 404
+    assert client.get(f"/api/v1/evidence/{ev['id']}/findings", headers=auth("sara")).status_code == 404
+
+
 def test_member_assignment_requires_supervisor(client: TestClient, setup: dict[str, str]) -> None:
     r = client.post(f"/api/v1/cases/{setup['case']}/members", headers=auth("esha"),
                     json={"user_id": user_id(client, "emil"), "permission": "analyse"})

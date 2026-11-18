@@ -1,6 +1,8 @@
 # Secrets and generated certificates — never commit.
 infra/.env
 infra/certs/out/
+infra/keycloak/realm/
+infra/demo-credentials.txt
 *.key
 *.pem
 

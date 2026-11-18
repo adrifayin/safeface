@@ -71,8 +71,17 @@ def create_case(body: CaseCreate, db: DB, me: Me) -> CaseOut:
 
 @router.get("/{case_id}", response_model=CaseDetail)
 def get_case(case_id: uuid.UUID, db: DB, me: Me) -> CaseDetail:
-    case = load_case(db, me, case_id, Action.CASE_VIEW)
-    audit.record(db, me.actor, "case.viewed", "case", case.id)
+    """Case metadata. Supervisors who assign cases may open it without being members
+    (to add members); this never includes media, which still requires membership."""
+    if membership(db, case_id, me.id) is None and is_allowed(me.principal.roles, Action.CASE_ASSIGN, None):
+        found = db.get(Case, case_id)
+        if found is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "case not found")
+        case = found
+        audit.record(db, me.actor, "case.viewed", "case", case.id, {"basis": "supervisor oversight (not a member)"})
+    else:
+        case = load_case(db, me, case_id, Action.CASE_VIEW)
+        audit.record(db, me.actor, "case.viewed", "case", case.id)
     detail = CaseDetail.model_validate(case, from_attributes=True)
     detail.evidence = [evidence_out(db, e) for e in case.evidence]
     detail.members = [

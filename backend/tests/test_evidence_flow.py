@@ -93,3 +93,13 @@ def test_tampered_working_copy_refused_by_worker(client: TestClient, jpeg_bytes:
     assert r.status_code == 202
     job = client.get(f"/api/v1/jobs/{r.json()[0]['id']}", headers=auth("esha")).json()
     assert job["status"] == "failed" and "refused" in job["error"]
+
+
+def test_bad_reference_rejected_before_storage(client: TestClient, jpeg_bytes: bytes) -> None:
+    import uuid as _uuid
+
+    case = new_case(client)
+    before = len(get_store().objects)  # type: ignore[attr-defined]
+    r = upload(client, case["id"], jpeg_bytes, kind="reference", reference_for=[str(_uuid.uuid4())])
+    assert r.status_code == 422
+    assert len(get_store().objects) == before  # nothing written to write-once storage  # type: ignore[attr-defined]
