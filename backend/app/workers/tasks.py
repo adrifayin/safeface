@@ -68,7 +68,7 @@ class IntegrityFailure(Exception):
     """A working copy does not match the hash recorded at ingest."""
 
 
-@worker_ready.connect
+@worker_ready.connect  # type: ignore[misc]
 def _report_status(**_: Any) -> None:
     """Tell the API which modules this worker can run (tools/weights present)."""
     queue = get_settings().worker_queue
