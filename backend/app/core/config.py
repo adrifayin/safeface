@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     models_dir: str = "/models"
     work_dir: str = "/work"
     seed: int = 0
+    # Working copies and figures/heatmaps are purged this long after the last analysis of an item
+    # (agreed with the user: 7 minutes). The sealed original, hashes, scores and reports are never
+    # purged. 0 disables purging.
+    work_retention_seconds: int = 420
 
     # --- Provenance -----------------------------------------------------------
     image_digest: str = "unknown (dev build)"

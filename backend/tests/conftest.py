@@ -35,6 +35,7 @@ os.environ.update({
     "SAFEFACE_MODELS_DIR": os.environ.get("SAFEFACE_TEST_MODELS_DIR", str(FIXTURES / "models")),
     "SAFEFACE_WORK_DIR": str(_tmp / "work"),
     "SAFEFACE_IMAGE_DIGEST": "sha256:test",
+    "SAFEFACE_WORK_RETENTION_SECONDS": "0",  # eager Celery would purge instantly; tested explicitly instead
 })
 os.environ.setdefault(
     "SAFEFACE_DATABASE_URL", "postgresql+psycopg://safeface_app:test@localhost:5432/safeface"

@@ -4,16 +4,23 @@ import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, FileUp, History, Microscope, Plus, ShieldAlert, ShieldCheck } from "lucide-react";
 import { api, sha256OfFile, uploadEvidence } from "@/lib/api";
-import type { CaseDetail, CustodyEntry, Evidence, EvidenceMetadata, Me } from "@/lib/types";
+import type { CaseDetail, CustodyEntry, Evidence, EvidenceMetadata, Me, ScreeningResult } from "@/lib/types";
 import { formatBytes, formatTime } from "@/lib/utils";
 import { hasRole, useMe } from "@/components/Layout";
 import { Empty, Facts, Hash, Loading, Notice, PageHeader } from "@/components/page";
+import { ScreeningBadge } from "@/components/Screening";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ErrorBox, Input, Label, Select } from "@/components/ui";
 
 export function CasePage() {
   const { caseId = "" } = useParams();
   const me = useMe();
   const detail = useQuery({ queryKey: ["case", caseId], queryFn: () => api.get<CaseDetail>(`/cases/${caseId}`) });
+  const screening = useQuery({
+    queryKey: ["case-screening", caseId, detail.data?.evidence.length],
+    enabled: !!detail.data?.my_permission && hasRole(me, "investigator", "examiner", "supervisor"),
+    queryFn: () => api.get<{ items: Record<string, ScreeningResult> }>(`/cases/${caseId}/screening`),
+    refetchInterval: 10_000,
+  });
   const [showUpload, setShowUpload] = useState<boolean | null>(null);
   // Decide once, on first load: an empty case opens the upload panel; afterwards only the user closes it.
   useEffect(() => {
@@ -55,6 +62,7 @@ export function CasePage() {
             </CardContent>
           </Card>
           <EvidenceSection title="Questioned items" items={questioned} all={c.evidence} me={me} canLink={canUpload}
+                           screening={screening.data?.items}
                            empty={canUpload ? "Upload the image or video to be examined." : "No questioned items yet."} />
           <EvidenceSection title="Reference items" items={references} all={c.evidence} me={me} canLink={false}
                            empty="Optional: the complainant's original photos or images from a suspect device, for comparison." />
@@ -68,21 +76,24 @@ export function CasePage() {
   );
 }
 
-function EvidenceSection({ title, items, all, me, canLink, empty }: {
+function EvidenceSection({ title, items, all, me, canLink, empty, screening }: {
   title: string; items: Evidence[]; all: Evidence[]; me: Me | null; canLink: boolean; empty: string;
+  screening?: Record<string, ScreeningResult>;
 }) {
   return (
     <Card>
       <CardHeader><CardTitle>{title} <span className="font-normal text-slate-500">({items.length})</span></CardTitle></CardHeader>
       <CardContent className="space-y-3">
         {items.length === 0 ? <Empty title="None">{empty}</Empty>
-          : items.map((e) => <EvidenceRow key={e.id} e={e} all={all} me={me} canLink={canLink} />)}
+          : items.map((e) => <EvidenceRow key={e.id} e={e} all={all} me={me} canLink={canLink} screening={screening?.[e.id]} />)}
       </CardContent>
     </Card>
   );
 }
 
-function EvidenceRow({ e, all, me, canLink }: { e: Evidence; all: Evidence[]; me: Me | null; canLink: boolean }) {
+function EvidenceRow({ e, all, me, canLink, screening }: {
+  e: Evidence; all: Evidence[]; me: Me | null; canLink: boolean; screening?: ScreeningResult;
+}) {
   const qc = useQueryClient();
   const [showCustody, setShowCustody] = useState(false);
   const custody = useQuery({
@@ -112,6 +123,7 @@ function EvidenceRow({ e, all, me, canLink }: { e: Evidence; all: Evidence[]; me
         {v && (v.ok
           ? <Badge tone="ok" title={`Last verified ${formatTime(v.verified_at)}`}><ShieldCheck className="mr-1 h-3 w-3" />Hash verified</Badge>
           : <Badge tone="bad"><ShieldAlert className="mr-1 h-3 w-3" />HASH MISMATCH</Badge>)}
+        <ScreeningBadge s={screening} />
         <div className="ml-auto flex flex-wrap gap-2">
           {e.kind === "questioned" && hasRole(me, "investigator", "examiner", "supervisor") && (
             <Button asChild size="sm"><Link to={`/evidence/${e.id}`}><Microscope className="h-3.5 w-3.5" /> Open workbench</Link></Button>

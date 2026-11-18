@@ -48,8 +48,17 @@ class UnivFD(ModuleBase):
     tier = 1
     requires_gpu = True
     triage_indicator = True
+    screening_core = True
+
+    def screen(self, scores: dict[str, float | None], details: dict[str, Any]) -> str | None:
+        p = scores.get("probability_generated")
+        if p is not None and p >= 0.5:
+            return f"{self.name}: score {p:.2f} is at or above the 0.50 screening threshold"
+        return None
     required_weights = ["clip-vit-l14", "univfd-fc"]  # noqa: RUF012
     default_params = {"crop": 224}  # noqa: RUF012
+    headline = ("probability_generated", 0.5)
+    plain = 'AI tool that estimates whether the whole picture was made by AI.'
     limitations = (
         "TRIAGE INDICATOR ONLY. Trained on ProGAN images; accuracy degrades substantially on newer "
         "generators, on edited (rather than fully generated) images and after social-media "
@@ -81,22 +90,26 @@ class UnivFD(ModuleBase):
         visual, fc = _cache[key]
         return visual, fc, {"clip-vit-l14": clip_sha, "univfd-fc": fc_sha}
 
-    def run(self, item: WorkingCopy, refs: list[WorkingCopy], params: dict[str, Any]) -> Finding:
+    def score(self, rgb: Array, crop_size: int = 224) -> tuple[float, float, str, dict[str, str]]:
+        """(probability, logit, determinism mode, weights) for one RGB image. Reused by video modules."""
         import torch
 
         from app.modules._vendor.clip_visual import CLIP_MEAN, CLIP_STD
 
-        p = self.merged_params(params)
-        rgb, info = load_rgb(item.path)
-        crop = center_crop(rgb, int(p["crop"]))
+        crop = center_crop(rgb, crop_size)
         visual, fc, weights = self._model()
-        dev = device()
         x = torch.from_numpy(crop.astype(np.float32) / 255.0).permute(2, 0, 1)[None]
         mean = torch.tensor(CLIP_MEAN).view(1, 3, 1, 1)
         std = torch.tensor(CLIP_STD).view(1, 3, 1, 1)
-        x = ((x - mean) / std).to(dev)
+        x = ((x - mean) / std).to(device())
         logit, mode = deterministic_forward(lambda: fc(visual(x)).item())
-        prob = r6(1.0 / (1.0 + np.exp(-logit)))
+        return r6(1.0 / (1.0 + np.exp(-logit))), float(logit), mode, weights
+
+    def run(self, item: WorkingCopy, refs: list[WorkingCopy], params: dict[str, Any]) -> Finding:
+        p = self.merged_params(params)
+        rgb, info = load_rgb(item.path)
+        prob, logit, mode, weights = self.score(rgb, int(p["crop"]))
+        dev = device()
         return Finding(
             scores=[
                 Score("probability_generated", prob, (0, 1),

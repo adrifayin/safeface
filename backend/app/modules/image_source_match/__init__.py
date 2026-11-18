@@ -29,46 +29,12 @@ from app.modules.base import (
     Score,
     WorkingCopy,
 )
-from app.modules.weights import WeightsError, resolve, weights_availability
-
-FACE_WEIGHTS = ["insightface-det-10g", "insightface-w600k-r50"]
-_face_models: dict[str, Any] = {}
-
-
-def _faces_available() -> Availability:
-    return weights_availability(FACE_WEIGHTS)
-
-
-def _load_face_models() -> tuple[Any, Any, dict[str, str]]:
-    """Load detector and recogniser from checksum-verified files only."""
-    det_path, det_sha = resolve("insightface-det-10g")
-    rec_path, rec_sha = resolve("insightface-w600k-r50")
-    key = det_sha + rec_sha
-    if key not in _face_models:
-        from insightface.model_zoo import model_zoo
-
-        providers = ["CPUExecutionProvider"]
-        det = model_zoo.get_model(str(det_path), providers=providers)
-        det.prepare(ctx_id=-1, input_size=(640, 640), det_thresh=0.5)
-        rec = model_zoo.get_model(str(rec_path), providers=providers)
-        rec.prepare(ctx_id=-1)
-        _face_models[key] = (det, rec)
-    det, rec = _face_models[key]
-    return det, rec, {"insightface-det-10g": det_sha, "insightface-w600k-r50": rec_sha}
-
+from app.modules._common import faces
+from app.modules.weights import WeightsError
 
 def _largest_face_embedding(det: Any, rec: Any, rgb: Array) -> Array | None:
-    from insightface.utils import face_align
-
-    bgr = np.ascontiguousarray(rgb[:, :, ::-1])
-    bboxes, kpss = det.detect(bgr, max_num=0, metric="default")
-    if bboxes is None or len(bboxes) == 0:
-        return None
-    areas = (bboxes[:, 2] - bboxes[:, 0]) * (bboxes[:, 3] - bboxes[:, 1])
-    i = int(np.argmax(areas))
-    crop = face_align.norm_crop(bgr, landmark=kpss[i], image_size=rec.input_size[0])
-    emb = np.asarray(rec.get_feat(crop), dtype=np.float64).flatten()
-    return emb / (np.linalg.norm(emb) + 1e-12)
+    found = faces.detect(det, rgb)
+    return faces.embedding(rec, rgb, found[0]) if found else None
 
 
 def _gray(rgb: Array) -> Array:
@@ -89,10 +55,18 @@ class SourceMatch(ModuleBase):
     family = Family.COMPARISON
     tier = 2
     requires_reference = True
+
+    def screen(self, scores: dict[str, float | None], details: dict[str, Any]) -> str | None:
+        frac = scores.get("changed_area_fraction")
+        if frac is not None and frac >= 0.01:
+            return f"Differs from the reference image in {frac * 100:.1f}% of the aligned area (threshold 1%)"
+        return None
     default_params = {  # noqa: RUF012
         "ratio": 0.75, "ransac_threshold_px": 4.0, "max_features": 5000,
         "min_inliers": 15, "change_threshold": 25,
     }
+    headline = ("changed_area_fraction", 0.01)
+    plain = 'Lines the photo up with the original and shows what changed.'
     limitations = (
         "Needs the original or a near-original reference of the same scene. A single homography "
         "models a flat scene or a pure camera rotation; with parallax, lens distortion or "
@@ -121,17 +95,18 @@ class SourceMatch(ModuleBase):
            nfeatures=int(p["max_features"]))
         q_kp, q_desc = sift.detectAndCompute(_gray(q_rgb), None)
 
-        faces = _faces_available()
+        face_status = faces.recogniser_available()
         face_models = None
         face_weights: dict[str, str] = {}
         q_emb = None
-        if faces.available:
+        if face_status.available:
             try:
-                det, rec, face_weights = _load_face_models()
+                (det, det_sha), (rec, rec_sha) = faces.load_detector(), faces.load_recogniser()
+                face_weights = {faces.DETECTOR: det_sha, faces.RECOGNISER: rec_sha}
                 face_models = (det, rec)
                 q_emb = _largest_face_embedding(det, rec, q_rgb)
             except WeightsError as exc:
-                faces = Availability(False, str(exc))
+                face_status = Availability(False, str(exc))
 
         per_ref: list[dict[str, Any]] = []
         best: dict[str, Any] | None = None
@@ -190,12 +165,12 @@ class SourceMatch(ModuleBase):
         )
         if ident is not None:
             summary += f" Face identity similarity {ident:.3f}."
-        elif not faces.available:
+        elif not face_status.available:
             summary += " Face identity not computed: face weights not installed."
         return Finding(
             scores=scores, summary=summary, limitations=self.limitations, artefacts=artefacts,
             details={"references": per_ref, "decode": q_info,
-                     "questioned_keypoints": len(q_kp), "face_status": faces.reason or "ok"},
+                     "questioned_keypoints": len(q_kp), "face_status": face_status.reason or "ok"},
             provenance={"weights": face_weights},
         )
 

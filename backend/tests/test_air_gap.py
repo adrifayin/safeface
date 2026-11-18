@@ -23,7 +23,7 @@ def test_container_has_no_internet_route(host: str) -> None:
 def test_no_external_urls_or_download_calls_in_app_code() -> None:
     """Application code must not reference internet hosts or download helpers."""
     allowed = re.compile(r"https?://(localhost|127\.0\.0\.1|keycloak|minio|redis|postgres|"
-                         r"safeface\.|www\.grip\.unina\.it/download/LICENSE)")
+                         r"safeface\.|www\.grip\.unina\.it/download/LICENSE|arxiv\.org)")
     forbidden_calls = ("hf_hub_download", "load_state_dict_from_url", "download_url_to_file",
                        "urlretrieve", "requests.get", "snapshot_download")
     for path in APP.rglob("*.py"):

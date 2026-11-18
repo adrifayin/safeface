@@ -8,3 +8,6 @@ insightface==0.7.3
 # insightface imports albumentations. 1.3.1 predates the online update check
 # added in later releases; NO_ALBUMENTATIONS_UPDATE=1 is also set in the image.
 albumentations==1.3.1
+# Phase 2: speech-to-text with word timestamps (CTranslate2 Whisper) and its bundled Silero VAD.
+# Models are loaded only from a local directory (never a hub name), with HF_HUB_OFFLINE=1.
+faster-whisper==1.1.0

@@ -40,6 +40,8 @@ from app.db.models import (
 )
 from app.modules.base import FAMILY_LABELS, FAMILY_ORDER, Family
 from app.modules.registry import all_modules
+from app.modules.weights import load_validation, validation_summary
+from app.services.screening import screen_item
 from app.services.verification import verify_item
 
 TEMPLATES = Path(__file__).parent / "templates"
@@ -129,6 +131,7 @@ def collect(
                             .order_by(EvidenceItem.ingested_at)).scalars())
 
     modules = all_modules()
+    benchmarks = load_validation()
     sections = []
     environments: dict[str, dict[str, Any]] = {}
     all_final = True
@@ -156,6 +159,10 @@ def collect(
                 figures = []
                 for art in f.artefacts:
                     if art["content_type"] == "image/png":
+                        if not store.exists(settings.bucket_artefacts, art["key"]):
+                            figures.append({"name": art["name"], "description": art["description"],
+                                            "sha256": art["sha256"], "src": None})
+                            continue
                         data = store.get_bytes(settings.bucket_artefacts, art["key"])
                         figures.append({
                             "name": art["name"], "description": art["description"],
@@ -177,6 +184,8 @@ def collect(
                     "finished_at": f.provenance.get("finished_at"),
                     "scores": [{**s, "display": _fmt_score(s["value"])} for s in f.scores],
                     "figures": figures,
+                    "validation": (validation_summary(benchmarks[f.module_id][-1]) if benchmarks.get(f.module_id)
+                                   else "Not yet validated on the SafeFace test set (Phase 4 benchmark pending)."),
                     "notes": [{"author": _user_name(db, n.author_id), "text": n.text,
                                "created_at": n.created_at} for n in notes],
                 })
@@ -200,6 +209,7 @@ def collect(
             EvidenceReference.questioned_id == item.id)).scalars())
         sections.append({
             "item": item,
+            "screening": screen_item(db, item),
             "references": [str(r) for r in refs],
             "groups": groups,
             "general_notes": [{"author": _user_name(db, n.author_id), "text": n.text,

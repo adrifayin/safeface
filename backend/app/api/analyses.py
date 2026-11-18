@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import Response
 from sqlalchemy import select
 
-from app.api.deps import DB, Me, load_evidence
+from app.api.deps import DB, Me, load_case, load_evidence
 from app.api.schemas import AnalysisRequest, FamilyGroup, FindingOut, FindingsResponse, JobOut
 from app.api.serialise import finding_out
 from app.core import audit
@@ -19,6 +19,7 @@ from app.core.storage import get_store
 from app.db.models import EvidenceItem, FindingRow, Job
 from app.modules.base import FAMILY_LABELS, FAMILY_ORDER
 from app.services.analysis import create_jobs
+from app.services.screening import CAVEAT, screen_item
 
 router = APIRouter(tags=["analyses"])
 
@@ -78,6 +79,28 @@ def get_findings(evidence_id: uuid.UUID, db: DB, me: Me) -> FindingsResponse:
                             notice=NO_VERDICT_NOTICE)
 
 
+@router.get("/evidence/{evidence_id}/screening")
+def get_screening(evidence_id: uuid.UUID, db: DB, me: Me) -> dict[str, Any]:
+    """Preliminary automated screening for one item (see services/screening.py)."""
+    item = load_evidence(db, me, evidence_id, Action.EVIDENCE_VIEW)
+    result = screen_item(db, item)
+    audit.record(db, me.actor, "evidence.screening_viewed", "evidence", item.id,
+                 {"status": result["status"], "flags": [f["module_id"] for f in result["flags"]]})
+    return result
+
+
+@router.get("/cases/{case_id}/screening")
+def case_screening(case_id: uuid.UUID, db: DB, me: Me) -> dict[str, Any]:
+    """Screening status of every questioned item in a case (for badges on the case page)."""
+    case = load_case(db, me, case_id, Action.EVIDENCE_VIEW)
+    items = db.execute(select(EvidenceItem).where(EvidenceItem.case_id == case.id,
+                                                  EvidenceItem.kind == "questioned")).scalars()
+    out = {str(i.id): screen_item(db, i) for i in items}
+    audit.record(db, me.actor, "case.screening_viewed", "case", case.id,
+                 {k: v["status"] for k, v in out.items()})
+    return {"items": out, "caveat": CAVEAT}
+
+
 @router.get("/artefacts/{key:path}")
 def get_artefact(key: str, db: DB, me: Me) -> Response:
     """Serve one artefact after checking the caller may view its evidence item."""
@@ -95,7 +118,11 @@ def get_artefact(key: str, db: DB, me: Me) -> Response:
     meta = next((a for a in finding.artefacts if a["key"] == key), None)
     if meta is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "artefact not found")
-    data = get_store().get_bytes(get_settings().bucket_artefacts, key)
+    store = get_store()
+    if not store.exists(get_settings().bucket_artefacts, key):
+        raise HTTPException(status.HTTP_410_GONE, "figure purged after the 7-minute retention period; its SHA-256 "
+                                                  "is kept in the finding. Re-run the analysis to regenerate it.")
+    data = store.get_bytes(get_settings().bucket_artefacts, key)
     audit.record(db, me.actor, "evidence.artefact_viewed", "evidence", item.id,
                  {"finding_id": str(finding_id), "artefact": meta["name"]})
     return Response(data, media_type=meta["content_type"], headers={
@@ -155,5 +182,3 @@ def compare_scores(a: FindingRow, b: FindingRow) -> dict[str, Any]:
     return {"rerun_finding_id": str(b.id), "max_abs_diff": worst, "diffs": diffs,
             "reproduced": reproduced}
 
-
-__all__ = ["EvidenceItem", "FindingOut", "router"]

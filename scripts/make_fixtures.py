@@ -11,6 +11,8 @@ Outputs (default: backend/tests/fixtures/):
   scene_edited.jpg     an object pasted in and a building removed by
                        inpainting, re-saved by "editing software"
   scene_edited_mask.png  ground-truth mask of the edited regions (255 = edited)
+  scene_video.mp4      4 s, 10 fps H.264 clip of the moving scene with a 440 Hz tone (needs ffmpeg)
+  tone.wav             3 s 16 kHz mono tone + noise
 
 Run inside the worker image so library versions match the tests:
   docker run --rm -v "$PWD:/src" -w /src safeface/worker:dev python scripts/make_fixtures.py
@@ -111,7 +113,37 @@ def main() -> None:
     mask = cv2.bitwise_or(mask, remove)
     save_jpeg(to_pil(edited), out / "scene_edited.jpg", 85, exif_edited())
     Image.fromarray(mask).save(out / "scene_edited_mask.png", optimize=False)
+    make_media(base, out, rng)
     print(f"fixtures written to {out}")
+
+
+def make_media(base: np.ndarray, out: Path, rng: np.random.Generator) -> None:
+    """Synthetic video (panning scene, moving shape) and audio. No people, nothing explicit."""
+    import shutil
+    import subprocess
+    import tempfile
+    import wave
+
+    rate = 16000
+    t = np.arange(3 * rate) / rate
+    tone = 0.3 * np.sin(2 * np.pi * 440 * t) + 0.02 * rng.normal(0, 1, t.size)
+    with wave.open(str(out / "tone.wav"), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes((np.clip(tone, -1, 1) * 32767).astype("<i2").tobytes())
+    if shutil.which("ffmpeg") is None:
+        print("ffmpeg not found: skipping scene_video.mp4")
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        for i in range(40):  # 4 s at 10 fps
+            frame = np.roll(base, i * 4, axis=1).copy()
+            cv2.circle(frame, (60 + i * 6, 380), 25, (30, 160, 230), -1)
+            cv2.imwrite(f"{tmp}/f_{i:03d}.png", cv2.resize(frame, (320, 240)))
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-framerate", "10", "-i", f"{tmp}/f_%03d.png",
+                        "-i", str(out / "tone.wav"), "-c:v", "libx264", "-pix_fmt", "yuv420p", "-g", "10",
+                        "-bitexact", "-c:a", "aac", "-shortest", "-map_metadata", "-1",
+                        str(out / "scene_video.mp4")], check=True)
 
 
 if __name__ == "__main__":

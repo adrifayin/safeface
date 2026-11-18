@@ -33,7 +33,10 @@ def load_checkpoint(name: str) -> tuple[Any, str, Path]:
         return obj, sha, path
     allow_pickle = bool(load_registry()[name].validation.get("allow_pickle", False))
     try:
-        obj = torch.load(str(path), map_location="cpu", weights_only=True)
+        # Data-only NumPy types (scalars such as an epoch number or metric) are allowed:
+        # they cannot execute code. Everything else still needs the explicit admin opt-in.
+        with torch.serialization.safe_globals(_numpy_data_globals()):
+            obj = torch.load(str(path), map_location="cpu", weights_only=True)
     except Exception as exc:
         if not allow_pickle:
             raise RuntimeError(
@@ -43,6 +46,14 @@ def load_checkpoint(name: str) -> tuple[Any, str, Path]:
             ) from exc
         obj = torch.load(str(path), map_location="cpu", weights_only=False)
     return obj, sha, path
+
+
+def _numpy_data_globals() -> list[Any]:
+    import numpy as np
+
+    scalar = np.core.multiarray.scalar  # type: ignore[attr-defined]
+    dtypes = [type(np.dtype(t)) for t in ("float16", "float32", "float64", "int32", "int64", "bool")]
+    return [scalar, np.dtype, *dtypes]
 
 
 def _is_torchscript(path: Path) -> bool:

@@ -38,6 +38,8 @@ class ErrorLevelAnalysis(ModuleBase):
     family = Family.CLASSICAL
     tier = 1
     default_params = {"quality": 90, "amplification": 15}  # noqa: RUF012
+    headline = ("p99_error", None)
+    plain = 'Re-saves the photo and shows areas that react differently (edits can stand out).'
     limitations = (
         "ELA has a high false-positive rate. Edges, fine texture, saturated colours and areas of "
         "high contrast naturally show high error levels; uniform areas show low levels whether or "

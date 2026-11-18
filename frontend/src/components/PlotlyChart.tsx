@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import type { ArtefactOut } from "@/lib/types";
 
 /** Renders a module's Plotly JSON artefact (bundled Plotly; no CDN, no logo link-out). */
-export function PlotlyArtefact({ artefact }: { artefact: ArtefactOut }) {
+export function PlotlyArtefact({ artefact, onPointClick }: { artefact: ArtefactOut; onPointClick?: (x: number) => void }) {
   const el = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let alive = true;
@@ -14,12 +14,16 @@ export function PlotlyArtefact({ artefact }: { artefact: ArtefactOut }) {
       if (!alive || !el.current) return;
       await Plotly.newPlot(el.current, spec.data, { ...spec.layout, height: 260, margin: { t: 36, l: 50, r: 10, b: 40 } },
         { displaylogo: false, responsive: true, modeBarButtonsToRemove: ["sendDataToCloud"] });
+      if (onPointClick) {
+        (el.current as unknown as { on: (ev: string, cb: (e: { points: { x: number }[] }) => void) => void })
+          .on("plotly_click", (e) => { const x = e.points?.[0]?.x; if (typeof x === "number") onPointClick(x); });
+      }
     });
     const node = el.current;
     return () => {
       alive = false;
       if (node) Plotly.purge(node);
     };
-  }, [artefact.key]);
+  }, [artefact.key, onPointClick]);
   return <div ref={el} className="w-full" />;
 }

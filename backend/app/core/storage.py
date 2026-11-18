@@ -42,6 +42,9 @@ class ObjectStore(Protocol):
     def iter_object(self, bucket: str, key: str, version_id: str | None = None) -> Iterator[bytes]: ...
     def download_to(self, bucket: str, key: str, path: Path) -> None: ...
     def copy(self, src_bucket: str, src_key: str, dst_bucket: str, dst_key: str) -> None: ...
+    def exists(self, bucket: str, key: str) -> bool: ...
+    def delete(self, bucket: str, key: str) -> None: ...
+    def retention(self, bucket: str, key: str, version_id: str | None) -> dict[str, str] | None: ...
 
 
 def _md5_b64(data: bytes) -> str:
@@ -154,6 +157,32 @@ class S3Store:
             for chunk in self.iter_object(bucket, key):
                 fh.write(chunk)
 
+    def exists(self, bucket: str, key: str) -> bool:
+        from botocore.exceptions import ClientError
+
+        try:
+            self._s3.head_object(Bucket=bucket, Key=key)
+            return True
+        except ClientError:
+            return False
+
+    def delete(self, bucket: str, key: str) -> None:
+        if bucket == self._settings.bucket_originals:
+            raise PermissionError("originals are never deleted by the application")
+        self._s3.delete_object(Bucket=bucket, Key=key)
+
+    def retention(self, bucket: str, key: str, version_id: str | None) -> dict[str, str] | None:
+        from botocore.exceptions import ClientError
+
+        kwargs: dict[str, str] = {"Bucket": bucket, "Key": key}
+        if version_id:
+            kwargs["VersionId"] = version_id
+        try:
+            r = self._s3.get_object_retention(**kwargs)["Retention"]
+            return {"mode": str(r["Mode"]), "retain_until": r["RetainUntilDate"].isoformat()}
+        except ClientError:
+            return None
+
 
 @dataclass
 class MemoryStore:
@@ -205,6 +234,17 @@ class MemoryStore:
 
     def copy(self, src_bucket: str, src_key: str, dst_bucket: str, dst_key: str) -> None:
         self.objects[(dst_bucket, dst_key)] = self.get_bytes(src_bucket, src_key)
+
+    def exists(self, bucket: str, key: str) -> bool:
+        return (bucket, key) in self.objects
+
+    def delete(self, bucket: str, key: str) -> None:
+        if bucket == get_settings().bucket_originals:
+            raise PermissionError("originals are never deleted by the application")
+        self.objects.pop((bucket, key), None)
+
+    def retention(self, bucket: str, key: str, version_id: str | None) -> dict[str, str] | None:
+        return {"mode": "TEST (in-memory store)", "retain_until": "n/a"} if (bucket, key) in self.objects else None
 
 
 _memory_store = MemoryStore()

@@ -6,7 +6,7 @@ import base64
 import binascii
 import json
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
@@ -39,6 +39,7 @@ from app.db.models import (
 from app.db.session import session_scope
 from app.services.analysis import create_jobs, triage_module_ids
 from app.services.ingest import store_original_stream
+from app.services.retention import restore_working_copy, schedule_purge
 from app.services.verification import verify_item
 
 router = APIRouter(tags=["evidence"])
@@ -187,11 +188,8 @@ def link_references(evidence_id: uuid.UUID, body: ReferenceLink, db: DB, me: Me)
 def get_content(evidence_id: uuid.UUID, db: DB, me: Me) -> StreamingResponse:
     """Stream the working copy for display (the browser blurs it until revealed)."""
     item = load_evidence(db, me, evidence_id, Action.EVIDENCE_VIEW)
-    wc = db.execute(
-        select(WorkingCopyRow).where(WorkingCopyRow.evidence_id == item.id,
-                                     WorkingCopyRow.derived_from.is_(None))
-        .order_by(WorkingCopyRow.created_at.desc()).limit(1)
-    ).scalar_one()
+    wc = restore_working_copy(db, get_store(), item, me.actor)
+    schedule_purge(item.id)
     audit.record(db, me.actor, "evidence.viewed", "evidence", item.id, {"what": "content"})
     db.commit()
     stream = get_store().iter_object(get_settings().bucket_working, wc.storage_key)
@@ -199,6 +197,42 @@ def get_content(evidence_id: uuid.UUID, db: DB, me: Me) -> StreamingResponse:
         "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
         "Content-Disposition": "inline",
     })
+
+
+@router.get("/evidence/{evidence_id}/integrity")
+def integrity(evidence_id: uuid.UUID, db: DB, me: Me) -> dict[str, Any]:
+    """Everything that shows the evidence has not changed since it was received (plain summary)."""
+    item = load_evidence(db, me, evidence_id, Action.CASE_VIEW)
+    s = get_settings()
+    store = get_store()
+    checks = db.execute(select(HashVerification).where(HashVerification.evidence_id == item.id,
+                                                       HashVerification.target == "original")
+                        .order_by(HashVerification.verified_at)).scalars().all()
+    last = checks[-1] if checks else None
+    wc = db.execute(select(WorkingCopyRow).where(WorkingCopyRow.evidence_id == item.id,
+                                                 WorkingCopyRow.derived_from.is_(None))
+                    .order_by(WorkingCopyRow.created_at.desc()).limit(1)).scalar_one_or_none()
+    custody = db.execute(select(AuditLog).where(AuditLog.target_type == "evidence",
+                                                AuditLog.target_id == str(item.id))
+                         .order_by(AuditLog.seq)).scalars().all()
+    ok = bool(last and last.ok) and all(v.ok for v in checks)
+    return {
+        "evidence_id": str(item.id),
+        "status": "verified" if ok else ("FAILED" if checks else "not yet verified"),
+        "statement": ("The stored original is bit-for-bit identical to the file received at ingest: its SHA-256 has "
+                      f"been re-computed {len(checks)} time(s) and matched every time." if ok else
+                      "WARNING: a re-computed hash did not match. Do not rely on this item until resolved."
+                      if checks else "Not yet verified."),
+        "sha256": item.sha256, "md5": item.md5, "size_bytes": item.size_bytes,
+        "ingested_at": item.ingested_at.isoformat(),
+        "last_verified_at": last.verified_at.isoformat() if last else None,
+        "verifications": len(checks), "failed_verifications": sum(1 for v in checks if not v.ok),
+        "sealed": store.retention(s.bucket_originals, item.storage_key, item.storage_version_id),
+        "working_copy": ("present" if wc and store.exists(s.bucket_working, wc.storage_key) else
+                         "purged after 7 minutes (re-created from the sealed original when needed)"),
+        "custody_entries": len(custody),
+        "custody_head_hash": custody[-1].entry_hash if custody else None,
+    }
 
 
 @router.post("/evidence/{evidence_id}/verify", response_model=list[VerificationOut])

@@ -51,6 +51,7 @@ from app.modules.base import (
 )
 from app.modules.registry import get_module
 from app.modules.status import report_worker_status
+from app.services.retention import purge_delay, purge_work_files, restore_working_copy, schedule_purge
 from app.modules.weights import WeightsError
 from app.workers.celery_app import celery_app
 
@@ -103,6 +104,7 @@ def fetch_working_copy(
     session: Session, store: ObjectStore, evidence: EvidenceItem, dest: Path
 ) -> WorkingCopy:
     """Download and hash-verify the working copy of ``evidence`` into ``dest``."""
+    restore_working_copy(session, store, evidence, "worker (restore for analysis)")
     wc = _latest_working_copy(session, evidence.id)
     dest.mkdir(parents=True, exist_ok=True)
     path = dest / f"item{EXTENSIONS.get(evidence.detected_mime, '.bin')}"
@@ -129,6 +131,20 @@ def fetch_working_copy(
     )
 
 
+@celery_app.task(name="safeface.purge_work_files")  # type: ignore[misc]
+def purge_task(evidence_id: str) -> None:
+    """Purge working files once no analysis of the item has run for the retention period."""
+    eid = uuid.UUID(evidence_id)
+    with session_scope() as session:
+        wait = purge_delay(session, eid)
+        if wait is not None:
+            schedule_purge(eid, wait)
+            return
+        item = session.get(EvidenceItem, eid)
+        if item is not None:
+            purge_work_files(session, get_store(), item, "system (7-minute retention)")
+
+
 def _finish(job_id: uuid.UUID, status: JobStatus, error: str, action: str) -> None:
     with session_scope() as session:
         job = session.get(Job, job_id, with_for_update=True)
@@ -140,6 +156,8 @@ def _finish(job_id: uuid.UUID, status: JobStatus, error: str, action: str) -> No
             session, _actor(session, job), action, "evidence", job.evidence_id,
             {"job_id": str(job.id), "module_id": job.module_id, "error": error[:500]},
         )
+        evidence_id = job.evidence_id
+    schedule_purge(evidence_id)
 
 
 def execute_job(job_id: uuid.UUID) -> None:
@@ -259,3 +277,5 @@ def _run_in_dir(job_id: uuid.UUID, module: AnalysisModule, store: ObjectStore, t
                 "artefact_sha256": {a["name"]: a["sha256"] for a in artefacts},
             },
         )
+        evidence_id = job.evidence_id
+    schedule_purge(evidence_id)

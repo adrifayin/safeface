@@ -66,7 +66,7 @@ RUN pip install Cython==3.3.1 -c constraints.txt && pip wheel --no-build-isolati
 # --------------------------------------------------------------- worker -----
 FROM base AS worker
 ARG TORCH_INDEX=https://download.pytorch.org/whl/cpu
-RUN apt-get update && apt-get install -y --no-install-recommends libimage-exiftool-perl \
+RUN apt-get update && apt-get install -y --no-install-recommends libimage-exiftool-perl ffmpeg mediainfo \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=c2patool /usr/local/bin/c2patool /usr/local/bin/c2patool
 COPY --from=mlwheels /wheels /wheels

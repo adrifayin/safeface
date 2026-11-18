@@ -143,7 +143,11 @@ class AnalysisModule(Protocol):
     default_params: dict[str, Any]
     triage_indicator: bool
 
+    screening_core: bool
+
     def availability(self) -> Availability: ...
+
+    def screen(self, scores: dict[str, float | None], details: dict[str, Any]) -> str | None: ...
 
     def merged_params(self, params: dict[str, Any]) -> dict[str, Any]: ...
 
@@ -166,6 +170,20 @@ class ModuleBase:
     required_weights: list[str] = []  # noqa: RUF012
     default_params: dict[str, Any] = {}  # noqa: RUF012
     triage_indicator: bool = False
+    # True for the detectors whose result decides whether screening is complete.
+    screening_core: bool = False
+    # Score shown in the summary chart, and the screening threshold drawn on it (None = no threshold).
+    headline: tuple[str, float | None] | None = None
+    # One plain-language sentence: what the check looks at (for officers and the report summary).
+    plain: str = ""
+
+    def screen(self, scores: dict[str, float | None], details: dict[str, Any]) -> str | None:
+        """Preliminary screening rule: a plain reason if this finding raises a doubt, else None.
+
+        Thresholds are uncalibrated defaults until Phase 4 validation; the
+        screening service labels the whole result as preliminary.
+        """
+        return None
 
     def availability(self) -> Availability:
         from app.modules.weights import weights_availability

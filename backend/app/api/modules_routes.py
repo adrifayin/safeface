@@ -10,20 +10,22 @@ from app.core.policy import Action
 from app.modules.base import FAMILY_LABELS, FAMILY_ORDER
 from app.modules.registry import all_modules
 from app.modules.status import effective
-from app.modules.weights import load_registry
+from app.modules.weights import load_registry, load_validation, validation_summary
 
 router = APIRouter(tags=["modules"])
 
 
 def module_list() -> list[ModuleOut]:
     registry = load_registry()
+    benchmarks = load_validation()
     out = []
     order = {f: i for i, f in enumerate(FAMILY_ORDER)}
     mods = sorted(all_modules().values(), key=lambda m: (order[m.family], m.tier, m.id))
     status = effective(mods)
     for m in mods:
         avail = status[m.id].availability
-        validation = [
+        validation = [{"status": f"Benchmark: {validation_summary(r)}", **r} for r in benchmarks.get(m.id, [])[-3:]]
+        validation += [
             {"weights": n, **registry[n].validation} for n in m.required_weights if n in registry
         ]
         out.append(ModuleOut(

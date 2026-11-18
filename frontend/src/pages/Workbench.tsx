@@ -6,20 +6,24 @@
  * scores, ranges, plain-language meanings and limitations. Nothing on this
  * screen combines findings into a verdict.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ChevronDown, Play, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api";
 import {
   CONCLUSION_SCALE, type CaseDetail, type Conclusion, type Evidence, type Finding, type FindingsResponse, type Job,
-  type ModuleInfo, type Note,
+  type ModuleInfo, type Note, type ScreeningResult,
 } from "@/lib/types";
 import { formatScore, formatTime } from "@/lib/utils";
 import { hasRole, useMe } from "@/components/Layout";
 import { Reveal } from "@/components/Reveal";
 import { ArtefactImage, EvidenceViewer, type Overlay } from "@/components/Viewer";
 import { PlotlyArtefact } from "@/components/PlotlyChart";
+import { ScreeningBanner } from "@/components/Screening";
+import { MediaPlayer } from "@/components/MediaPlayer";
+import { GeometryTool } from "@/components/GeometryTool";
+
 import { Empty, Hash, Loading, Notice, PageHeader } from "@/components/page";
 import {
   Badge, Button, Card, CardContent, CardHeader, CardTitle, ErrorBox, Label, Select, Tabs, TabsContent, TabsList,
@@ -44,12 +48,24 @@ export function Workbench() {
     queryFn: () => api.get<FindingsResponse>(`/evidence/${evidenceId}/findings`),
     refetchInterval: (q) => (q.state.data?.jobs.some((j) => j.status === "queued" || j.status === "running") ? 3000 : false),
   });
+  const screening = useQuery({
+    queryKey: ["screening", evidenceId, findings.data?.jobs.map((j) => j.status).join()],
+    enabled: !!findings.data,
+    queryFn: () => api.get<ScreeningResult>(`/evidence/${evidenceId}/screening`),
+  });
   const notes = useQuery({ queryKey: ["notes", evidenceId], queryFn: () => api.get<Note[]>(`/evidence/${evidenceId}/notes`) });
   const run = useMutation({
     mutationFn: (moduleIds: string[]) => api.post<Job[]>(`/evidence/${evidenceId}/analyses`, { module_ids: moduleIds }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["findings", evidenceId] }),
   });
 
+  const player = useRef<HTMLVideoElement>(null);
+  const seek = useCallback((t: number) => {
+    if (player.current) {
+      player.current.currentTime = t;
+      player.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, []);
   const allFindings = useMemo(() => findings.data?.groups.flatMap((g) => g.findings) ?? [], [findings.data]);
   const latestByModule = useMemo(() => {
     const m = new Map<string, Finding>();
@@ -91,6 +107,11 @@ export function Workbench() {
           {busy > 0 && <Badge tone="info">{busy} analysis job(s) running…</Badge>}
         </span>}
       />
+      {screening.data && (
+        <div className="mb-3">
+          <ScreeningBanner s={screening.data} onJump={(id) => document.getElementById(`module-${id}`)?.scrollIntoView({ behavior: "smooth" })} />
+        </div>
+      )}
       <div className="mb-4" data-testid="no-verdict-notice">
         <Notice><span className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           {findings.data?.notice ?? "Each finding is an independent indicator. SafeFace never gives a real/fake verdict."}</span></Notice>
@@ -99,8 +120,13 @@ export function Workbench() {
         {/* Image stays in view while findings scroll. */}
         <div className="xl:sticky xl:top-4 xl:self-start">
           <Card>
-            <CardHeader><CardTitle>Image</CardTitle></CardHeader>
-            <CardContent><Reveal label="image"><EvidenceViewer evidenceId={ev.id} overlays={overlays} /></Reveal></CardContent>
+            <CardHeader><CardTitle>{ev.media_type === "image" ? "Image" : ev.media_type === "video" ? "Video" : "Audio"}</CardTitle></CardHeader>
+            <CardContent>
+              {ev.media_type === "image"
+                ? <Reveal label="image"><EvidenceViewer evidenceId={ev.id} overlays={overlays} /></Reveal>
+                : <Reveal label={ev.media_type}><MediaPlayer ref={player} evidenceId={ev.id} kind={ev.media_type as "video" | "audio"} /></Reveal>}
+              {ev.media_type !== "image" && <p className="mt-2 text-xs text-slate-500">Click a point on any timeline to jump to that moment.</p>}
+            </CardContent>
           </Card>
         </div>
         <Tabs defaultValue="findings">
@@ -119,7 +145,7 @@ export function Workbench() {
                                 notes={notes.data?.filter((n) => n.finding_id === latestByModule.get(m.id)?.id) ?? []}
                                 hasReferences={ev.reference_ids.length > 0}
                                 canRun={m.tier === 2 ? isExaminer : canRunTier1} canNote={isExaminer}
-                                onRun={() => run.mutate([m.id])} running={run.isPending} />
+                                onRun={() => run.mutate([m.id])} running={run.isPending} onSeek={seek} evidenceId={ev.id} />
                   ))}
                 </div>
               </section>
@@ -176,7 +202,8 @@ function UnavailableList({ modules }: { modules: ModuleInfo[] }) {
 
 function ModuleCard(props: {
   module: ModuleInfo; finding?: Finding; job?: Job; notes: Note[]; hasReferences: boolean;
-  canRun: boolean; canNote: boolean; onRun: () => void; running: boolean;
+  canRun: boolean; canNote: boolean; onRun: () => void; running: boolean; onSeek?: (t: number) => void;
+  evidenceId: string;
 }) {
   const { module: m, finding: f, job } = props;
   const qc = useQueryClient();
@@ -194,7 +221,7 @@ function ModuleCard(props: {
         {m.triage_indicator && <Badge tone="warn">triage indicator</Badge>}
         {job ? <Badge tone={STATUS_TONE[job.status]}>{job.status}</Badge> : <Badge>not run</Badge>}
         <div className="ml-auto flex gap-2">
-          {props.canRun && m.available && (
+          {props.canRun && m.available && m.id !== "image.geometry" && (
             <Button size="sm" variant={m.tier === 2 && !f ? "default" : "outline"} disabled={props.running || needsRef}
                     title={needsRef ? "Attach a reference item to this evidence first" : undefined} onClick={props.onRun}
                     data-testid={`run-${m.id}`}>
@@ -210,6 +237,9 @@ function ModuleCard(props: {
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <p className="text-xs text-slate-500">{m.description} <span className="font-mono">({m.id} v{m.version})</span></p>
+        {m.id === "image.geometry" && props.canRun && m.available && (
+          <Reveal label="drawing tool"><GeometryTool evidenceId={f?.evidence_id ?? props.evidenceId} /></Reveal>
+        )}
         {needsRef && !f && <p className="text-amber-800">Needs a reference item: attach one on the case page.</p>}
         {!m.available && <p className="text-slate-600">Unavailable: {m.unavailable_reason}</p>}
         {job?.status === "failed" && <p className="text-red-700">Failed: {job.error}</p>}
@@ -234,7 +264,7 @@ function ModuleCard(props: {
             {f.artefacts.filter((a) => a.kind === "image").map((a) => (
               <Reveal key={a.key} label={a.name}><ArtefactImage artefact={a} /></Reveal>
             ))}
-            {f.artefacts.filter((a) => a.kind === "plot").map((a) => <PlotlyArtefact key={a.key} artefact={a} />)}
+            {f.artefacts.filter((a) => a.kind === "plot").map((a) => <PlotlyArtefact key={a.key} artefact={a} onPointClick={props.onSeek} />)}
             {f.artefacts.some((a) => a.kind === "heatmap") && (
               <p className="text-xs text-slate-500">Heatmap available: switch it on under “Overlays” below the image.</p>
             )}

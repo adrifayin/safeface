@@ -75,6 +75,28 @@ def load_registry() -> dict[str, WeightsEntry]:
     return entries
 
 
+def load_validation() -> dict[str, list[dict[str, Any]]]:
+    """Benchmark results written by scripts/benchmark.py (models/validation.yaml), keyed by module id."""
+    path = Path(get_settings().models_dir) / "validation.yaml"
+    if not path.exists():
+        return {}
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return {str(k): list(v or []) for k, v in data.items()}
+
+
+def validation_summary(record: dict[str, Any]) -> str:
+    c = record.get("clean", {})
+    parts = [f"{record.get('dataset', '?')} (n={c.get('n', 0)}, {record.get('run_at', '')[:10]})"]
+    for key, label in (("auc", "AUC"), ("tpr_at_1pct_fpr", "TPR@1%FPR"), ("tpr_at_5pct_fpr", "TPR@5%FPR"),
+                       ("pixel_f1", "pixel F1")):
+        if key in c:
+            parts.append(f"{label} {c[key]:.2f}")
+    for kind in ("jpeg70", "resize50", "messaging"):
+        if "auc" in record.get(kind, {}):
+            parts.append(f"AUC after {kind} {record[kind]['auc']:.2f}")
+    return "; ".join(parts)
+
+
 # Disabled names are pushed in from the database (model_registry.enabled) by
 # the API/worker at startup and after an approved change.
 _disabled: set[str] = set()

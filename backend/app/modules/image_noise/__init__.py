@@ -40,6 +40,8 @@ class NoiseVariance(ModuleBase):
     family = Family.CLASSICAL
     tier = 1
     default_params = {"block": 32, "wavelet": "db8"}  # noqa: RUF012
+    headline = ("low_noise_fraction", None)
+    plain = 'Maps camera grain; pasted or painted-over areas often have less of it.'
     limitations = (
         "Strongly textured regions (foliage, hair, fabric) raise the estimate and flat, dark or "
         "saturated regions lower it, which can mimic or mask anomalies. Noise reduction, "

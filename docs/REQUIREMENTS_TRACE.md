@@ -17,12 +17,23 @@ Status: **Done** = implemented and tested · **Partial** = implemented with a st
 | FR-1.8 | Bulk upload / batch triage | S | Later | — | — |
 | FR-2.1 | Metadata: EXIF/XMP/IPTC, software tags, thumbnail, quant tables | M | Done | `modules/image_metadata` | goldens + `test_metadata_*` |
 | FR-2.2 | C2PA verification; invisible watermark "where decoders exist" | M | Partial: C2PA done; no offline watermark decoder exists, stated in limitations | `modules/image_c2pa` | `test_c2pa_reports_absence` |
-| FR-2.3 | TruFor localization + reliability map | M | Partial: adapter implemented against upstream `trufor_test.py`; runs once the admin installs the licensed code+weights; not executed in CI (licence) | `modules/image_trufor` | shim tests; unavailable-state tests |
+| FR-2.3 | TruFor localization + reliability map | M | Done — runs with the official weights (edited fixture: integrity 0.96, pixel F1 0.94 vs ground truth; original: 0.32) | `modules/image_trufor` | shim tests; real-weights run |
 | FR-2.4 | ≥ 2 AI detectors, reported separately | M | Done (UnivFD + NPR; never averaged; "triage indicator") | `modules/image_aigen_*` | determinism, weights tests; NPR verified against real checkpoint |
 | FR-2.5 | Source matching: face identity + keypoint alignment + aligned difference | M | Done (ArcFace when weights installed) | `modules/image_source_match` | `test_source_match_localises_the_edit` |
-| FR-2.6 | ELA, **JPEG ghosts**, local noise | M | Partial: ELA + noise done; JPEG ghost deferred to Phase 3 per build plan (conflict noted with SRS) | `modules/image_ela`, `image_noise` | goldens |
-| FR-2.7 – 2.10 | FFT, PRNU, face-swap, physics tools | S/C | Later (Phase 3) | — | — |
-| FR-3.x, FR-4.x | Video and audio analysis | M/S/C | Later (Phase 2) | ingest accepts the formats | — |
+| FR-2.6 | ELA, JPEG ghosts, local noise | M | Done | `modules/image_ela`, `image_noise`, `image_jpeg_ghost` | goldens |
+| FR-2.7 | Residual FFT spectrum | S | Done | `image_fft` | golden |
+| FR-2.8 | PRNU fingerprint, global PCE + regional map | S | Done | `image_prnu` | synthetic-fingerprint test |
+| FR-2.9 | Face-swap detection | S | Done (SBI on images and video) | `video_face_frame_scores` | real checkpoint loads strictly |
+| FR-2.10 | Shadow / perspective tools | C | Done (examiner draws lines; vanishing-point / light-source fit) | `image_geometry`, `GeometryTool.tsx` | geometry test |
+| FR-3.1 | Container/stream analysis | M | Done (ffprobe + MediaInfo) | `video_container` | media tests |
+| FR-3.2 | Keyframes + sampled frames into image detectors | M | Done | `video_aigen`, `_common/media.py` | media tests, real weights |
+| FR-3.3 | Face tracks + per-frame face scores on a timeline | M | Done | `video_face_track`, `video_face_frame_scores`, timeline click-to-seek | |
+| FR-3.4 | Temporal detection on face tracks | S | Partial: identity drift + SBI flicker; FTCN not integrated (no licence, PyTorch 1.4) | `video_temporal` | |
+| FR-3.5 | AV sync | S | Partial: speech-energy vs lip-opening synchrony; no offline lip-reading (VSR) model, so no word-level VSR diff | `video_av_sync` | |
+| FR-3.6 | Phoneme–viseme M/B/P | S | Done (Whisper word timings; English + Malayalam bilabials) | `video_phoneme_viseme` | |
+| FR-3.7 | rPPG, labelled experimental | C | Done (POS, 3x3 regions) | `video_rppg` | |
+| FR-4.1 | Synthetic speech, segment scores | S | Done (AASIST, speech-gated by Silero VAD) | `audio_spoof` | media tests, real weights |
+| FR-4.2 | Spectrogram + audio metadata | S | Done | `audio_spectrogram` | golden |
 | FR-5.1 | Finding = method, version, params, scores, visual, limitations | M | Done | `modules/base.py`, `workers/tasks.py` | `test_full_flow` |
 | FR-5.2 | Dashboard grouped by family | M | Done | `GET /evidence/{id}/findings`, Workbench | `test_full_flow`, Playwright |
 | FR-5.3 | Never a single real/fake verdict | M | Done | no combining code exists; notice on every screen/report | `test_full_flow` (forbidden words) |
@@ -34,7 +45,7 @@ Status: **Done** = implemented and tested · **Partial** = implemented with a st
 | FR-6.1 | Users/roles with 2FA | M | Done (Keycloak; read-only mirror in UI) | realm generator, `api/admin.py` | Playwright (TOTP login) |
 | FR-6.2 | Tamper-evident audit log | M | Done | `core/audit.py` | `test_audit_chain`, `test_audit_export` |
 | FR-6.3 | Model registry: install, version, checksum, enable/disable offline | M | Done (two-person enable/disable) | `modules/weights.py`, `api/admin.py` | `test_weights_and_ml` |
-| FR-6.4 | Benchmark runner | S | Later (Phase 4) | — | — |
+| FR-6.4 | Benchmark runner | S | Done (CLI; results shown in UI and reports); numbers need the user-supplied datasets | `scripts/benchmark.py` | metric unit tests |
 | FR-6.5 | Retention rules with approved deletion | S | Later (append-only triggers would need a controlled deletion procedure) | — | — |
 
 ## Non-functional requirements
@@ -68,7 +79,7 @@ Status: **Done** = implemented and tested · **Partial** = implemented with a st
 |---|---|
 | Upload hash matches `sha256sum` | Done — `test_hash_matches_sha256sum_and_md5sum`, Playwright compares browser hash |
 | Modified original detected on re-verification | Done — `test_modified_original_is_detected` |
-| TruFor heatmap overlaps edited region on inpainted test set | Pending — needs licensed weights + team test set (Phase 4) |
+| TruFor heatmap overlaps edited region on inpainted test set | Partly shown: F1 0.94 on the synthetic fixture with official weights; run `scripts/benchmark.py` on the team test set |
 | Source matching difference map highlights edited region | Done — `test_source_match_localises_the_edit` (> 3× contrast inside mask) |
 | AI detectors report AUC on Deepfake-Eval-2024 + own set | Pending — Phase 4 benchmark runner |
 | No real/fake verdict anywhere | Done |
@@ -83,3 +94,10 @@ Status: **Done** = implemented and tested · **Partial** = implemented with a st
 2. **MinIO KES** — TDD lists a `kes` service; build plan does not: static MinIO KMS key in dev, KES documented for production.
 3. **SIFT vs LoFTR** — SIFT implemented (build plan).
 4. **image.noise tier** — TDD/prompt Tier 1 (as built); SRS workflow §5.1 mentions noise maps as Tier 2: kept Tier 1 (cheap, automatic).
+
+## Preliminary screening (agreed with the user for Phase 2)
+
+`GET /evidence/{id}/screening` returns "Doubt raised — refer to an examiner", "No doubt raised by the automated checks
+that ran" or "Screening incomplete". Each doubt names its check and threshold, and the accuracy caveat always travels
+with it. It is not a real/fake verdict (those words are never used; tested), appears in the PDF only as Appendix A, and
+the examiner's approved conclusion remains the only opinion in the report.

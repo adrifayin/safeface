@@ -83,7 +83,21 @@ Only these two files are loaded, each individually checksum-verified.
 SafeFace does not use InsightFace's `FaceAnalysis` loader (it would load every
 `.onnx` in the folder unverified and download missing models).
 
-## 5. Transfer checklist
+## 5. Phase 2 models (video and audio)
+
+`python scripts/fetch_models.py` fetches everything below and records hashes; manual equivalents:
+
+| Registry name | File | Source | Published SHA-256 |
+|---|---|---|---|
+| `sbi` | `models/sbi/FFc23.tar` | SBI README "c23" Google Drive link (non-commercial licence) | none — recorded |
+| `aasist` | `models/aasist/AASIST.pth` | github.com/clovaai/aasist @ a04c986, `models/weights/AASIST.pth` | `51d2d9cf…a1c0` |
+| `insightface-2d106det` | `models/insightface/buffalo_l/2d106det.onnx` | `buffalo_l.zip` (as above) | none — recorded |
+| `whisper-small-*` (4 files) | `models/whisper/small/{model.bin,config.json,tokenizer.json,vocabulary.txt}` | huggingface.co/Systran/faster-whisper-small @ 536b066 | none — recorded |
+
+TruFor's checkpoint contains NumPy scalars (e.g. the epoch). SafeFace's loader allows exactly the
+data-only NumPy scalar/dtype types with `weights_only=True`; no `allow_pickle` opt-in is needed.
+
+## 6. Transfer checklist
 
 - [ ] Files copied to `models/` at the registry paths, read-only (`chmod 0444`).
 - [ ] `sha256sum` re-run **on the server** matches the registry.

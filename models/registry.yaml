@@ -62,7 +62,7 @@ weights:
     version: trufor-weights-2023
     path: trufor/trufor.pth.tar
     # Not published upstream: the admin records it from the official zip (fetch_models.md).
-    sha256: null
+    sha256: ac1d90e329a72e0d66e8665e123a19e94bfae3209c3ef8a4f9ca3b91578c7844  # recorded by fetch_models.py; second person to verify
     licence: GRIP-UNINA research licence - non-profit use only
     source: https://www.grip.unina.it/download/prog/TruFor/TruFor_weights.zip
     validation:
@@ -72,7 +72,7 @@ weights:
     module_id: image.source_match
     version: buffalo_l
     path: insightface/buffalo_l/det_10g.onnx
-    sha256: null
+    sha256: 5838f7fe053675b1c7a08b633df49e7af5495cee0493c7dcf6697200b85b5b91  # recorded by fetch_models.py; second person to verify
     licence: "InsightFace pretrained models: non-commercial research use only"
     source: https://github.com/deepinsight/insightface (model_zoo, buffalo_l.zip)
     validation:
@@ -82,8 +82,80 @@ weights:
     module_id: image.source_match
     version: buffalo_l
     path: insightface/buffalo_l/w600k_r50.onnx
-    sha256: null
+    sha256: 4c06341c33c2ca1f86781dab0e829f88ad5b64be9fba56e56bc9ebdefc619e43  # recorded by fetch_models.py; second person to verify
     licence: "InsightFace pretrained models: non-commercial research use only"
     source: https://github.com/deepinsight/insightface (model_zoo, buffalo_l.zip)
+    validation:
+      status: not yet validated on the SafeFace test set (Phase 4)
+
+  - name: sbi
+    module_id: video.face_frame_scores
+    version: sbi-ffc23
+    path: sbi/FFc23.tar
+    # Official FF++ c23 checkpoint from the authors' Google Drive link (SBI README, commit d6d9a35).
+    sha256: 2b05c2ba36ccb9e9f4f9e1aae9acd443ae2e6400ce725f56104fdb175d3c3267  # recorded by fetch_models.py; second person to verify
+    licence: "SBI licence: academic / non-profit non-commercial research use only"
+    source: https://github.com/mapooon/SelfBlendedImages (README weights link, c23)
+    validation:
+      status: not yet validated on the SafeFace test set (Phase 4)
+
+  - name: aasist
+    module_id: audio.spoof
+    version: aasist-a04c986
+    path: aasist/AASIST.pth
+    # sha256 of models/weights/AASIST.pth at commit a04c9863f63d44471dde8a6abcb3b082b07cd1d1
+    sha256: 51d2d9cf0738172f61e2a384ec50a54a55363240f67c971ed55a92435bc1a1c0
+    licence: MIT (clovaai/aasist)
+    source: https://github.com/clovaai/aasist (models/weights/AASIST.pth)
+    validation:
+      status: not yet validated on the SafeFace test set (Phase 4)
+
+  - name: insightface-2d106det
+    module_id: video.av_sync
+    version: buffalo_l
+    path: insightface/buffalo_l/2d106det.onnx
+    sha256: f001b856447c413801ef5c42091ed0cd516fcd21f2d6b79635b1e733a7109dbf  # recorded by fetch_models.py; second person to verify
+    licence: "InsightFace pretrained models: non-commercial research use only"
+    source: https://github.com/deepinsight/insightface (model_zoo, buffalo_l.zip)
+    validation:
+      status: not yet validated on the SafeFace test set (Phase 4)
+
+  - name: whisper-small-model
+    module_id: video.phoneme_viseme
+    version: faster-whisper-small-536b066
+    path: whisper/small/model.bin
+    sha256: 3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671  # recorded by fetch_models.py; second person to verify
+    licence: MIT (OpenAI Whisper weights, CTranslate2 conversion by Systran)
+    source: https://huggingface.co/Systran/faster-whisper-small (revision 536b066)
+    validation:
+      status: not yet validated on the SafeFace test set (Phase 4)
+
+  - name: whisper-small-config
+    module_id: video.phoneme_viseme
+    version: faster-whisper-small-536b066
+    path: whisper/small/config.json
+    sha256: b55496ac7940a7ae47d2c01eab40edfd8701feec1229d9cce3b40014383fb828  # recorded by fetch_models.py; second person to verify
+    licence: MIT (OpenAI Whisper weights, CTranslate2 conversion by Systran)
+    source: https://huggingface.co/Systran/faster-whisper-small (revision 536b066)
+    validation:
+      status: not yet validated on the SafeFace test set (Phase 4)
+
+  - name: whisper-small-tokenizer
+    module_id: video.phoneme_viseme
+    version: faster-whisper-small-536b066
+    path: whisper/small/tokenizer.json
+    sha256: fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab  # recorded by fetch_models.py; second person to verify
+    licence: MIT (OpenAI Whisper weights, CTranslate2 conversion by Systran)
+    source: https://huggingface.co/Systran/faster-whisper-small (revision 536b066)
+    validation:
+      status: not yet validated on the SafeFace test set (Phase 4)
+
+  - name: whisper-small-vocabulary
+    module_id: video.phoneme_viseme
+    version: faster-whisper-small-536b066
+    path: whisper/small/vocabulary.txt
+    sha256: 34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913  # recorded by fetch_models.py; second person to verify
+    licence: MIT (OpenAI Whisper weights, CTranslate2 conversion by Systran)
+    source: https://huggingface.co/Systran/faster-whisper-small (revision 536b066)
     validation:
       status: not yet validated on the SafeFace test set (Phase 4)

@@ -50,6 +50,15 @@ class C2PA(ModuleBase):
     )
     family = Family.PROVENANCE
     tier = 1
+
+    def screen(self, scores: dict[str, float | None], details: dict[str, Any]) -> str | None:
+        if scores.get("ai_generation_declared") == 1:
+            return "C2PA Content Credentials declare the content as AI-generated"
+        if scores.get("manifest_present") == 1 and scores.get("signature_valid") == 0:
+            return "C2PA manifest present but its signature or hashes do not validate"
+        return None
+    headline = ("manifest_present", None)
+    plain = "Checks for a signed digital 'content credential' and what it declares."
     limitations = (
         "Most image tools, and almost all abusive or 'nudify' tools, add no C2PA provenance, and "
         "platforms usually strip it, so absence of a manifest says nothing about authenticity. A "

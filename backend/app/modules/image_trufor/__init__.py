@@ -23,6 +23,8 @@ import threading
 from pathlib import Path
 from typing import Any, cast
 
+import numpy as np
+
 from app.modules._common.imaging import Array, colormap, load_rgb, r6, save_png
 from app.modules._common.torchutil import (
     deterministic_forward,
@@ -69,8 +71,17 @@ class TruFor(ModuleBase):
     family = Family.CLASSICAL
     tier = 1
     requires_gpu = True
+    screening_core = True
+
+    def screen(self, scores: dict[str, float | None], details: dict[str, Any]) -> str | None:
+        s = scores.get("integrity_score")
+        if s is not None and s >= 0.5:
+            return f"TruFor integrity score {s:.2f} is at or above the 0.50 screening threshold (see localization map)"
+        return None
     required_weights = ["trufor-src", "trufor"]  # noqa: RUF012
     default_params = {"max_pixels": 12_000_000}  # noqa: RUF012
+    headline = ("integrity_score", 0.5)
+    plain = 'AI tool that marks where a photo may have been edited (0 = clean, 1 = edited).'
     limitations = (
         "Weaker on heavily recompressed, resized or screenshotted images (e.g. after messaging-app "
         "round-trips), where the camera-noise traces it relies on are lost. Trained mostly on "
@@ -138,8 +149,11 @@ class TruFor(ModuleBase):
         (loc, conf, score), mode = deterministic_forward(infer)
         out = item.workdir
         save_png(colormap(loc, "inferno"), out / "trufor_localization.png")
+        np.save(out / "trufor_localization.npy", loc.astype(np.float16))  # raw map for benchmark F1/IoU
         artefacts = [Artefact("trufor_localization.png", out / "trufor_localization.png",
-                              ArtefactKind.HEATMAP, "TruFor localization map (bright = likely manipulated)")]
+                              ArtefactKind.HEATMAP, "TruFor localization map (bright = likely manipulated)"),
+                     Artefact("trufor_localization.npy", out / "trufor_localization.npy", ArtefactKind.JSON,
+                              "Raw localization map (NumPy float16)", "application/octet-stream")]
         if conf is not None:
             save_png(colormap(conf, "viridis"), out / "trufor_confidence.png")
             artefacts.append(Artefact("trufor_confidence.png", out / "trufor_confidence.png",

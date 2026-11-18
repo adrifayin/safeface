@@ -228,6 +228,17 @@ export interface AuditVerify {
   verified_at: string;
 }
 
+export interface ScreeningResult {
+  evidence_id: string;
+  status: "doubt_raised" | "no_doubt_raised" | "incomplete";
+  headline: string;
+  flags: { module_id: string; check: string; reason: string; finding_id: string }[];
+  checks_run: string[];
+  detectors_without_result: string[];
+  pending: string[];
+  caveat: string;
+}
+
 export const CONCLUSION_SCALE: { value: string; label: string }[] = [
   { value: "strong_support_manipulation", label: "Strong support for manipulation" },
   { value: "moderate_support_manipulation", label: "Moderate support for manipulation" },

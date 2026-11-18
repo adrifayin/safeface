@@ -76,6 +76,15 @@ class Metadata(ModuleBase):
     )
     family = Family.PROVENANCE
     tier = 1
+
+    def screen(self, scores: dict[str, float | None], details: dict[str, Any]) -> str | None:
+        if scores.get("ai_generator_tag") == 1:
+            return "Metadata names an AI image generator or declares AI-generated content"
+        if scores.get("editing_software_tag") == 1:
+            return "Metadata shows the file was written by image-editing software"
+        return None
+    headline = ("anomaly_count", None)
+    plain = 'Looks at hidden file information (camera, software, AI-tool tags).'
     limitations = (
         "Metadata is easily stripped, edited or forged, and almost all social-media and messaging "
         "platforms remove it. Absence of metadata or of camera fields proves nothing; presence of "

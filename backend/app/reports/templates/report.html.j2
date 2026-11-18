@@ -84,6 +84,7 @@
     {% if f.weights %}<tr><th>Model weights (SHA-256)</th><td class="mono">{% for k, v in f.weights.items() %}{{ k }}: {{ v }}<br>{% endfor %}</td></tr>{% endif %}
     <tr><th>Run</th><td>{{ f.finished_at }} · {{ f.runtime }} s · finding <span class="mono">{{ f.id }}</span></td></tr>
     <tr><th>Result</th><td>{{ f.summary }}</td></tr>
+    <tr><th>Validation</th><td>{{ f.validation }}</td></tr>
   </table>
   <table>
     <tr><th>Score</th><th style="width:16%">Value</th><th style="width:14%">Range</th><th style="width:42%">Meaning</th></tr>
@@ -92,7 +93,7 @@
     {% endfor %}
   </table>
   {% for fig in f.figures %}
-  <figure><img src="{{ fig.src }}" alt="{{ fig.name }}"><figcaption>Figure: {{ fig.description }} ({{ fig.name }}, SHA-256 <span class="mono">{{ fig.sha256 }}</span>)</figcaption></figure>
+  {% if fig.src %}<figure><img src="{{ fig.src }}" alt="{{ fig.name }}"><figcaption>Figure: {{ fig.description }} ({{ fig.name }}, SHA-256 <span class="mono">{{ fig.sha256 }}</span>)</figcaption></figure>{% else %}<p style="font-size:8pt">Figure "{{ fig.description }}" was deleted after the 7-minute retention period (SHA-256 <span class="mono">{{ fig.sha256 }}</span> recorded). Re-run the analysis to include it.</p>{% endif %}
   {% endfor %}
   <div class="limit"><strong>Limitations.</strong> {{ f.limitations }}</div>
   {% for n in f.notes %}<p><strong>Examiner note</strong> ({{ n.author }}, {{ n.created_at|iso }}): {{ n.text }}</p>{% endfor %}
@@ -120,6 +121,17 @@
 <p><strong>No conclusion recorded.</strong> This report is a draft.</p>
 {% endif %}
 {% endfor %}
+
+<h2>Appendix A. Automated preliminary screening (not a finding)</h2>
+{% for sec in sections %}
+<div class="box">
+  <strong>{{ sec.item.original_filename }}: {{ sec.screening.headline }}</strong><br>
+  {% if sec.screening.flags %}Checks that raised a doubt:<ul>{% for fl in sec.screening.flags %}<li>{{ fl.reason }}</li>{% endfor %}</ul>{% endif %}
+  {% if sec.screening.detectors_without_result %}Detectors without a result: {{ sec.screening.detectors_without_result|join(", ") }}.<br>{% endif %}
+  <small>{{ sec.screening.caveat }}</small>
+</div>
+{% endfor %}
+<p>This appendix records the automated triage that led to examination. It has no evidential weight; the examiner's approved conclusion in section 4 is the only opinion expressed in this report.</p>
 
 <h2>5. Signatures</h2>
 <table>

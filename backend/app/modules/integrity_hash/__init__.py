@@ -24,6 +24,13 @@ class IntegrityHash(ModuleBase):
     family = Family.INTEGRITY
     media_types = {MediaType.IMAGE, MediaType.VIDEO, MediaType.AUDIO}  # noqa: RUF012
     tier = 1
+
+    def screen(self, scores: dict[str, float | None], details: dict[str, Any]) -> str | None:
+        if scores.get("sha256_match") == 0:
+            return "The analysed copy does not match the ingest hash (integrity failure)"
+        return None
+    headline = ("sha256_match", None)
+    plain = 'Is the file analysed exactly the file that was received? (1 = yes)'
     limitations = (
         "A matching hash proves only that the analysed file is bit-for-bit identical to the file "
         "received at ingest. It says nothing about whether the content itself is authentic, nor "

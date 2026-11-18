@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as np
 
-from app.modules._common.imaging import load_rgb, r6
+from app.modules._common.imaging import Array, load_rgb, r6
 from app.modules._common.torchutil import (
     deterministic_forward,
     device,
@@ -48,8 +48,17 @@ class NPR(ModuleBase):
     tier = 1
     requires_gpu = True
     triage_indicator = True
+    screening_core = True
+
+    def screen(self, scores: dict[str, float | None], details: dict[str, Any]) -> str | None:
+        p = scores.get("probability_generated")
+        if p is not None and p >= 0.5:
+            return f"{self.name}: score {p:.2f} is at or above the 0.50 screening threshold"
+        return None
     required_weights = ["npr"]  # noqa: RUF012
     default_params = {"max_side": 1024}  # noqa: RUF012
+    headline = ("probability_generated", 0.5)
+    plain = 'Second, independent AI-generation test based on pixel patterns.'
     limitations = (
         "TRIAGE INDICATOR ONLY. Trained on ProGAN (4-class) images; it responds to up-sampling "
         "artefacts, which recompression, resizing and screenshots weaken or remove, and which some "
@@ -73,25 +82,28 @@ class NPR(ModuleBase):
             _cache[sha] = net.to(device()).eval()
         return _cache[sha], sha
 
-    def run(self, item: WorkingCopy, refs: list[WorkingCopy], params: dict[str, Any]) -> Finding:
+    def score(self, rgb: Array, max_side: int = 1024) -> tuple[float, float, str, str, str]:
+        """(probability, logit, determinism mode, weights sha, analysed region). Reused by video modules."""
         import torch
 
-        p = self.merged_params(params)
-        rgb, info = load_rgb(item.path)
         h, w = rgb.shape[:2]
-        side = int(p["max_side"])
-        ch, cw = min(h, side), min(w, side)
+        ch, cw = min(h, max_side), min(w, max_side)
         top, left = (h - ch) // 2, (w - cw) // 2
         crop = rgb[top:top + ch, left:left + cw]
         crop = crop[: crop.shape[0] // 2 * 2, : crop.shape[1] // 2 * 2]
         net, sha = self._model()
-        dev = device()
         x = torch.from_numpy(crop.astype(np.float32) / 255.0).permute(2, 0, 1)[None]
         x = ((x - torch.tensor(IMAGENET_MEAN).view(1, 3, 1, 1))
-             / torch.tensor(IMAGENET_STD).view(1, 3, 1, 1)).to(dev)
+             / torch.tensor(IMAGENET_STD).view(1, 3, 1, 1)).to(device())
         logit, mode = deterministic_forward(lambda: net(x).item())
-        prob = r6(1.0 / (1.0 + np.exp(-logit)))
         region = "full image" if (ch, cw) == (h, w) else f"centre {crop.shape[1]}x{crop.shape[0]} crop"
+        return r6(1.0 / (1.0 + np.exp(-logit))), float(logit), mode, sha, region
+
+    def run(self, item: WorkingCopy, refs: list[WorkingCopy], params: dict[str, Any]) -> Finding:
+        p = self.merged_params(params)
+        rgb, info = load_rgb(item.path)
+        prob, logit, mode, sha, region = self.score(rgb, int(p["max_side"]))
+        dev = device()
         return Finding(
             scores=[
                 Score("probability_generated", prob, (0, 1),
