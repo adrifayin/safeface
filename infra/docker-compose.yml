@@ -149,7 +149,7 @@ services:
     image: safeface/api:dev
     <<: *hardening
     environment: *backend-env
-    volumes: ["../models:/models:ro"]
+    volumes: ["../models:/models:ro", "../datasets:/datasets:ro"]
     tmpfs: ["/tmp"]
     networks: [backend]
     mem_limit: 2g
@@ -172,7 +172,7 @@ services:
     environment:
       <<: *backend-env
       SAFEFACE_WORKER_QUEUE: cpu
-    volumes: ["../models:/models:ro"]
+    volumes: ["../models:/models:ro", "../datasets:/datasets:ro"]
     tmpfs: ["/tmp:size=512m", "/work:size=8g,uid=10001,gid=10001,mode=0700"]
     networks: [backend]
     mem_limit: 6g
@@ -194,7 +194,7 @@ services:
     environment:
       <<: *backend-env
       SAFEFACE_WORKER_QUEUE: gpu
-    volumes: ["../models:/models:ro"]
+    volumes: ["../models:/models:ro", "../datasets:/datasets:ro"]
     tmpfs: ["/tmp:size=1g", "/work:size=8g,uid=10001,gid=10001,mode=0700"]
     networks: [backend]
     mem_limit: 8g

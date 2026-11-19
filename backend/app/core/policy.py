@@ -56,6 +56,7 @@ class Action(StrEnum):
     MODELS_VIEW = "models.view"
     MODELS_REQUEST_CHANGE = "models.request_change"
     MODELS_APPROVE_CHANGE = "models.approve_change"
+    BENCHMARK_RUN = "benchmark.run"
 
 
 A = Action
@@ -79,11 +80,11 @@ ROLE_ACTIONS: dict[Role, frozenset[Action]] = {
         _CASE_WORKER
         | {
             A.CASE_CREATE, A.CASE_LIST_ALL, A.CASE_ASSIGN, A.CASE_CLOSE, A.CASE_DISPOSE, A.EVIDENCE_VERIFY,
-            A.CONCLUSION_APPROVE, A.AUDIT_VIEW, A.AUDIT_VERIFY, A.MODELS_APPROVE_CHANGE,
+            A.CONCLUSION_APPROVE, A.AUDIT_VIEW, A.AUDIT_VERIFY, A.MODELS_APPROVE_CHANGE, A.BENCHMARK_RUN,
         }
     ),
     Role.ADMIN: frozenset(
-        {A.MODULES_VIEW, A.MODELS_VIEW, A.ADMIN_USERS, A.MODELS_REQUEST_CHANGE}
+        {A.MODULES_VIEW, A.MODELS_VIEW, A.ADMIN_USERS, A.MODELS_REQUEST_CHANGE, A.BENCHMARK_RUN}
     ),
     Role.AUDITOR: frozenset(
         {A.CASE_VIEW, A.REPORT_VIEW, A.AUDIT_VIEW, A.AUDIT_VERIFY, A.MODULES_VIEW, A.MODELS_VIEW}
@@ -118,6 +119,7 @@ CASE_PERMISSION_NEEDED: dict[Action, CasePermission | None] = {
     A.MODELS_VIEW: None,
     A.MODELS_REQUEST_CHANGE: None,
     A.MODELS_APPROVE_CHANGE: None,
+    A.BENCHMARK_RUN: None,
 }
 
 # Auditors may see case metadata and reports, never evidence media.

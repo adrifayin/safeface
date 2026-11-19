@@ -8,12 +8,14 @@ import type { CaseSummary } from "@/lib/types";
 import { formatTime } from "@/lib/utils";
 import { hasRole, useMe } from "@/components/Layout";
 import { Empty, Loading, PageHeader } from "@/components/page";
+import { useT } from "@/lib/i18n";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ErrorBox, Input, Label, Textarea } from "@/components/ui";
 
 const PERMISSION_LABEL: Record<string, string> = { view: "View", analyse: "Analyse", approve: "Approve" };
 
 export function CasesPage() {
   const me = useMe();
+  const t = useT();
   const navigate = useNavigate();
   const cases = useQuery({ queryKey: ["cases"], queryFn: () => api.get<CaseSummary[]>("/cases") });
   const canCreate = hasRole(me, "investigator", "examiner", "supervisor");
@@ -28,11 +30,11 @@ export function CasesPage() {
   return (
     <div>
       <PageHeader
-        title="Cases"
+        title={t("Cases")}
         subtitle={hasRole(me, "supervisor") ? "All cases in the unit. Open a case to assign examiners and approvers."
           : hasRole(me, "auditor") ? "Cases you have been given access to (read-only)."
           : "Cases you are a member of."}
-        actions={canCreate && !showForm && <Button onClick={() => setShowForm(true)}><Plus className="h-4 w-4" /> New case</Button>}
+        actions={canCreate && !showForm && <Button onClick={() => setShowForm(true)}><Plus className="h-4 w-4" /> {t("New case")}</Button>}
       />
       <div className={showForm ? "grid gap-4 lg:grid-cols-[1fr_400px]" : ""}>
         <Card>

@@ -131,6 +131,32 @@ def fetch_working_copy(
     )
 
 
+@celery_app.task(name="safeface.run_benchmark")  # type: ignore[misc]
+def benchmark_task(run_id: str) -> None:
+    """Phase 4 validation run (can take long: one module run per dataset item)."""
+    from app.db.models import BenchmarkRun
+    from app.services.benchmark import run_benchmark
+
+    rid = uuid.UUID(run_id)
+    with session_scope() as session:
+        run = session.get(BenchmarkRun, rid)
+        if run is None or run.status != "queued":
+            return
+        run.status = "running"
+        module_id, dataset, robustness = run.module_id, run.dataset, run.robustness
+    try:
+        results = run_benchmark(module_id, Path(get_settings().datasets_dir) / dataset, robustness)
+        status_, error = "succeeded", None
+    except Exception as exc:  # noqa: BLE001 - recorded on the run
+        results, status_, error = {}, "failed", f"{exc.__class__.__name__}: {exc}"[:2000]
+    with session_scope() as session:
+        run = session.get(BenchmarkRun, rid)
+        assert run is not None
+        run.status, run.results, run.error, run.finished_at = status_, normalise(results), error, utcnow()
+        audit.record(session, "system (benchmark)", f"benchmark.{status_}", "module", module_id,
+                     {"run_id": run_id, "dataset": dataset, "clean": results.get("clean", {}), "error": error})
+
+
 @celery_app.task(name="safeface.purge_work_files")  # type: ignore[misc]
 def purge_task(evidence_id: str) -> None:
     """Purge working files once no analysis of the item has run for the retention period."""

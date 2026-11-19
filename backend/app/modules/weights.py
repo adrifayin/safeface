@@ -84,6 +84,21 @@ def load_validation() -> dict[str, list[dict[str, Any]]]:
     return {str(k): list(v or []) for k, v in data.items()}
 
 
+def all_validation(session: Any) -> dict[str, list[dict[str, Any]]]:
+    """YAML results plus successful benchmark runs stored in the database, oldest first."""
+    from sqlalchemy import select
+
+    from app.db.models import BenchmarkRun
+
+    out = load_validation()
+    rows = session.execute(select(BenchmarkRun).where(BenchmarkRun.status == "succeeded")
+                           .order_by(BenchmarkRun.finished_at)).scalars()
+    for r in rows:
+        out.setdefault(r.module_id, []).append(
+            {**r.results, "run_at": r.finished_at.isoformat() if r.finished_at else ""})
+    return out
+
+
 def validation_summary(record: dict[str, Any]) -> str:
     c = record.get("clean", {})
     parts = [f"{record.get('dataset', '?')} (n={c.get('n', 0)}, {record.get('run_at', '')[:10]})"]

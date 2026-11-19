@@ -6,6 +6,7 @@ import type { AuditVerify, ModuleInfo, RegistryChange, RegistryEntry } from "@/l
 import { formatTime } from "@/lib/utils";
 import { hasRole, useMe } from "@/components/Layout";
 import { Empty, Hash, Loading, Notice, PageHeader } from "@/components/page";
+import { ValidationPanel } from "@/components/Validation";
 import {
   Badge, Button, Card, CardContent, CardHeader, CardTitle, ErrorBox, Input, Tabs, TabsContent, TabsList, TabsTrigger,
 } from "@/components/ui";
@@ -37,11 +38,13 @@ export function AdminPage() {
           {isAdmin && <TabsTrigger value="users">Users &amp; roles</TabsTrigger>}
           <TabsTrigger value="registry">Model registry</TabsTrigger>
           <TabsTrigger value="modules">Analysis modules</TabsTrigger>
+          <TabsTrigger value="validation">Validation</TabsTrigger>
           {canVerify && <TabsTrigger value="audit">Audit chain</TabsTrigger>}
         </TabsList>
         {isAdmin && <TabsContent value="users"><Users /></TabsContent>}
         <TabsContent value="registry"><Registry /></TabsContent>
         <TabsContent value="modules"><Modules /></TabsContent>
+        <TabsContent value="validation"><ValidationPanel /></TabsContent>
         {canVerify && <TabsContent value="audit"><AuditVerifyCard /></TabsContent>}
       </Tabs>
     </div>

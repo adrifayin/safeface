@@ -22,3 +22,7 @@ frontend/dist/
 frontend/test-results/
 frontend/playwright-report/
 offline-bundle/
+
+# Phase 4 datasets are supplied locally, never committed
+datasets/*
+!datasets/README.md

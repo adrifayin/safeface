@@ -17,9 +17,10 @@ from app import __version__
 from app.api import (
     admin,
     analyses,
-    disposals,
     audit_routes,
+    benchmarks,
     cases,
+    disposals,
     evidence,
     examiner,
     modules_routes,
@@ -71,6 +72,6 @@ def health() -> dict[str, str]:
 
 for router in (
     session_routes.router, cases.router, evidence.router, analyses.router, examiner.router,
-    reports.router, audit_routes.router, modules_routes.router, admin.router, disposals.router,
+    reports.router, audit_routes.router, modules_routes.router, admin.router, disposals.router, benchmarks.router,
 ):
     app.include_router(router, prefix=API_PREFIX)

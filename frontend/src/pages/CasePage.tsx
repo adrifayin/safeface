@@ -9,11 +9,14 @@ import { formatBytes, formatTime } from "@/lib/utils";
 import { hasRole, useMe } from "@/components/Layout";
 import { Empty, Facts, Hash, Loading, Notice, PageHeader } from "@/components/page";
 import { ScreeningBadge } from "@/components/Screening";
+import { DisposalPanel } from "@/components/Disposal";
+import { useT } from "@/lib/i18n";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ErrorBox, Input, Label, Select } from "@/components/ui";
 
 export function CasePage() {
   const { caseId = "" } = useParams();
   const me = useMe();
+  const t = useT();
   const detail = useQuery({ queryKey: ["case", caseId], queryFn: () => api.get<CaseDetail>(`/cases/${caseId}`) });
   const screening = useQuery({
     queryKey: ["case-screening", caseId, detail.data?.evidence.length],
@@ -29,7 +32,7 @@ export function CasePage() {
   if (detail.isLoading) return <Loading />;
   if (detail.error || !detail.data) return <ErrorBox error={detail.error ?? "Case not found"} />;
   const c = detail.data;
-  const canUpload = !!c.my_permission && c.my_permission !== "view" && hasRole(me, "investigator", "examiner");
+  const canUpload = c.status === "open" && !!c.my_permission && c.my_permission !== "view" && hasRole(me, "investigator", "examiner");
   const uploadOpen = canUpload && showUpload === true;
   const questioned = c.evidence.filter((e) => e.kind === "questioned");
   const references = c.evidence.filter((e) => e.kind === "reference");
@@ -40,7 +43,7 @@ export function CasePage() {
         title={`Case ${c.case_no}`}
         subtitle={c.crime_head}
         actions={<>
-          {canUpload && !uploadOpen && <Button onClick={() => setShowUpload(true)}><Plus className="h-4 w-4" /> Add evidence</Button>}
+          {canUpload && !uploadOpen && <Button onClick={() => setShowUpload(true)}><Plus className="h-4 w-4" /> {t("Add evidence")}</Button>}
           {hasRole(me, "examiner", "supervisor", "auditor") && c.my_permission && (
             <Button asChild variant="outline"><Link to={`/cases/${c.id}/report`}><FileText className="h-4 w-4" /> Reports &amp; s.63(4)</Link></Button>
           )}
@@ -61,15 +64,16 @@ export function CasePage() {
               ]} />
             </CardContent>
           </Card>
-          <EvidenceSection title="Questioned items" items={questioned} all={c.evidence} me={me} canLink={canUpload}
+          <EvidenceSection title={t("Questioned items")} items={questioned} all={c.evidence} me={me} canLink={canUpload}
                            screening={screening.data?.items}
                            empty={canUpload ? "Upload the image or video to be examined." : "No questioned items yet."} />
-          <EvidenceSection title="Reference items" items={references} all={c.evidence} me={me} canLink={false}
+          <EvidenceSection title={t("Reference items")} items={references} all={c.evidence} me={me} canLink={false}
                            empty="Optional: the complainant's original photos or images from a suspect device, for comparison." />
         </div>
         <div className="space-y-4">
           {uploadOpen && <UploadPanel caseId={c.id} questioned={questioned} onClose={() => setShowUpload(false)} />}
           <Members c={c} />
+          {hasRole(me, "supervisor") && <DisposalPanel c={c} />}
         </div>
       </div>
     </div>
@@ -110,6 +114,7 @@ function EvidenceRow({ e, all, me, canLink, screening }: {
     mutationFn: () => api.post(`/evidence/${e.id}/references`, { reference_ids: [refPick] }),
     onSuccess: () => { setRefPick(""); void qc.invalidateQueries({ queryKey: ["case", e.case_id] }); },
   });
+  const t = useT();
   const v = e.last_verification;
   const linked = (e.kind === "questioned" ? e.reference_ids : e.questioned_ids)
     .map((r) => all.find((x) => x.id === r)?.original_filename ?? r);
@@ -126,7 +131,7 @@ function EvidenceRow({ e, all, me, canLink, screening }: {
         <ScreeningBadge s={screening} />
         <div className="ml-auto flex flex-wrap gap-2">
           {e.kind === "questioned" && hasRole(me, "investigator", "examiner", "supervisor") && (
-            <Button asChild size="sm"><Link to={`/evidence/${e.id}`}><Microscope className="h-3.5 w-3.5" /> Open workbench</Link></Button>
+            <Button asChild size="sm"><Link to={`/evidence/${e.id}`}><Microscope className="h-3.5 w-3.5" /> {t("Open workbench")}</Link></Button>
           )}
           {hasRole(me, "examiner", "supervisor") && (
             <Button size="sm" variant="outline" onClick={() => verify.mutate()} disabled={verify.isPending}>
@@ -185,6 +190,7 @@ interface QueueItem {
 
 function UploadPanel({ caseId, questioned, onClose }: { caseId: string; questioned: Evidence[]; onClose: () => void }) {
   const qc = useQueryClient();
+  const t = useT();
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [drag, setDrag] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -238,7 +244,7 @@ function UploadPanel({ caseId, questioned, onClose }: { caseId: string; question
       </CardHeader>
       <CardContent className="space-y-3">
         <div>
-          <Label>1. Kind of item</Label>
+          <Label>{t("1. Kind of item")}</Label>
           <Select value={meta.kind} onChange={(e) => setMeta({ ...meta, kind: e.target.value as "questioned" | "reference" })} data-testid="kind-select">
             <option value="questioned">Questioned item (to be examined)</option>
             <option value="reference">Reference item (e.g. complainant's original photo)</option>
@@ -252,7 +258,7 @@ function UploadPanel({ caseId, questioned, onClose }: { caseId: string; question
             </Select></div>
         )}
         <div>
-          <Label>2. Files (one or many — photos, videos, audio)</Label>
+          <Label>{t("2. Files (one or many — photos, videos, audio)")}</Label>
           <label
             onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
             onDragLeave={() => setDrag(false)}
@@ -260,7 +266,7 @@ function UploadPanel({ caseId, questioned, onClose }: { caseId: string; question
             className={`flex cursor-pointer flex-col items-center gap-1 rounded-md border-2 border-dashed p-5 text-center text-sm ${drag ? "border-slate-700 bg-slate-100" : "border-slate-300 hover:border-slate-500"}`}
           >
             <FileUp className="h-6 w-6 text-slate-500" />
-            <span>Drag files or a folder's contents here, or click to choose</span>
+            <span>{t("Drag files or a folder's contents here, or click to choose")}</span>
             <span className="text-xs text-slate-500">JPEG, PNG, HEIC, WEBP · MP4, MOV, MKV, WEBM · WAV, MP3, M4A, OGG · up to 4 GB each</span>
             <input type="file" multiple className="hidden" data-testid="file-input"
                    onChange={(e) => { if (e.target.files) add(e.target.files); e.target.value = ""; }} />
@@ -299,7 +305,7 @@ function UploadPanel({ caseId, questioned, onClose }: { caseId: string; question
           </div>
         </details>
         <Button className="w-full" onClick={() => void submit()} disabled={!pending || busy} data-testid="upload-button">
-          {busy ? "Uploading…" : `Hash & ingest${pending > 1 ? ` ${pending} files` : ""}`}
+          {busy ? "Uploading…" : `${t("Hash & ingest")}${pending > 1 ? ` (${pending})` : ""}`}
         </Button>
         <p className="text-xs text-slate-500">Each original is hashed (SHA-256 + MD5) while streaming, stored write-once and never modified, and its automatic checks start as soon as it is stored.</p>
       </CardContent>
@@ -310,6 +316,7 @@ function UploadPanel({ caseId, questioned, onClose }: { caseId: string; question
 function Members({ c }: { c: CaseDetail }) {
   const me = useMe();
   const qc = useQueryClient();
+  const t = useT();
   const isSup = hasRole(me, "supervisor");
   const dir = useQuery({ queryKey: ["directory"], enabled: isSup, queryFn: () => api.get<Me["user"][]>("/admin/directory") });
   const [pick, setPick] = useState({ user_id: "", permission: "analyse" });
@@ -319,7 +326,7 @@ function Members({ c }: { c: CaseDetail }) {
   });
   return (
     <Card>
-      <CardHeader><CardTitle>Case members</CardTitle></CardHeader>
+      <CardHeader><CardTitle>{t("Case members")}</CardTitle></CardHeader>
       <CardContent className="space-y-2 text-sm">
         {c.members.map((m) => (
           <div key={m.user_id} className="flex items-center justify-between gap-2">

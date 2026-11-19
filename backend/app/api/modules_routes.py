@@ -2,22 +2,24 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter
 
-from app.api.deps import Me, require
+from app.api.deps import DB, Me, require
 from app.api.schemas import ModuleOut
 from app.core.policy import Action
 from app.modules.base import FAMILY_LABELS, FAMILY_ORDER
 from app.modules.registry import all_modules
 from app.modules.status import effective
-from app.modules.weights import load_registry, load_validation, validation_summary
+from app.modules.weights import all_validation, load_registry, validation_summary
 
 router = APIRouter(tags=["modules"])
 
 
-def module_list() -> list[ModuleOut]:
+def module_list(db: Any) -> list[ModuleOut]:
     registry = load_registry()
-    benchmarks = load_validation()
+    benchmarks = all_validation(db)
     out = []
     order = {f: i for i, f in enumerate(FAMILY_ORDER)}
     mods = sorted(all_modules().values(), key=lambda m: (order[m.family], m.tier, m.id))
@@ -41,6 +43,6 @@ def module_list() -> list[ModuleOut]:
 
 
 @router.get("/modules", response_model=list[ModuleOut])
-def list_modules(me: Me) -> list[ModuleOut]:
+def list_modules(db: DB, me: Me) -> list[ModuleOut]:
     require(me, Action.MODULES_VIEW)
-    return module_list()
+    return module_list(db)

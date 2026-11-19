@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { formatTime } from "@/lib/utils";
 import { Hash } from "./page";
 import { Button, ErrorBox } from "./ui";
+import { useT } from "@/lib/i18n";
 
 interface IntegrityInfo {
   status: "verified" | "FAILED" | "not yet verified";
@@ -24,6 +25,7 @@ interface IntegrityInfo {
 
 export function IntegrityPanel({ evidenceId, canVerify }: { evidenceId: string; canVerify: boolean }) {
   const qc = useQueryClient();
+  const t = useT();
   const q = useQuery({ queryKey: ["integrity", evidenceId], queryFn: () => api.get<IntegrityInfo>(`/evidence/${evidenceId}/integrity`) });
   const verify = useMutation({
     mutationFn: () => api.post(`/evidence/${evidenceId}/verify`),
@@ -39,9 +41,9 @@ export function IntegrityPanel({ evidenceId, canVerify }: { evidenceId: string; 
         {ok ? <ShieldCheck className="h-6 w-6 shrink-0" /> : <ShieldAlert className="h-6 w-6 shrink-0" />}
         <div className="min-w-0 flex-1 space-y-2">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-wide opacity-80">Evidence integrity</div>
+            <div className="text-xs font-semibold uppercase tracking-wide opacity-80">{t("Evidence integrity")}</div>
             <div className="text-lg font-semibold" data-testid="integrity-status">
-              {ok ? "Verified — unchanged since it was received" : d.status === "FAILED" ? "INTEGRITY FAILURE" : "Not yet verified"}
+              {ok ? t("Verified — unchanged since it was received") : d.status === "FAILED" ? "INTEGRITY FAILURE" : "Not yet verified"}
             </div>
             <p className="text-sm">{d.statement}</p>
           </div>

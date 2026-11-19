@@ -7,6 +7,7 @@ import { getUser, login, logout, watchIdle } from "@/lib/auth";
 import type { Me } from "@/lib/types";
 import { Button } from "./ui";
 import { Loading } from "./page";
+import { useLang, useT } from "@/lib/i18n";
 
 const MeContext = createContext<Me | null>(null);
 export const useMe = () => useContext(MeContext);
@@ -51,6 +52,8 @@ export function Home({ cases }: { cases: ReactNode }) {
 
 export function Layout() {
   const me = useMe();
+  const t = useT();
+  const { lang, setLang } = useLang();
   const isAdminOnly = !hasRole(me, ...CASE_ROLES);
   const link = ({ isActive }: { isActive: boolean }) =>
     `rounded px-3 py-1.5 text-sm ${isActive ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/10 hover:text-white"}`;
@@ -63,7 +66,7 @@ export function Layout() {
             <span className="hidden font-normal text-slate-400 sm:inline">Forensic Workbench</span>
           </Link>
           <nav className="flex gap-1" aria-label="Main">
-            {!isAdminOnly && <NavLink to="/" end className={link}>Cases</NavLink>}
+            {!isAdminOnly && <NavLink to="/" end className={link}>{t("Cases")}</NavLink>}
             {hasRole(me, "supervisor") && <NavLink to="/approvals" className={link}>Approvals</NavLink>}
             {hasRole(me, "supervisor", "auditor") && <NavLink to="/audit" className={link}>Audit log</NavLink>}
             <NavLink to="/admin" className={link}>{hasRole(me, "admin") ? "Administration" : "Models"}</NavLink>
@@ -73,7 +76,9 @@ export function Layout() {
               <div>{me?.user.display_name}</div>
               <div className="text-xs text-slate-400">{me?.roles.map((r) => ROLE_LABEL[r] ?? r).join(", ")} · {me?.user.username}</div>
             </div>
-            <Button size="sm" variant="secondary" onClick={() => void logout()}><LogOut className="h-3.5 w-3.5" /> Sign out</Button>
+            <button type="button" className="rounded border border-white/30 px-2 py-1 text-xs hover:bg-white/10" data-testid="lang-toggle"
+                    onClick={() => setLang(lang === "en" ? "ml" : "en")} title="English / മലയാളം">{lang === "en" ? "മലയാളം" : "English"}</button>
+            <Button size="sm" variant="secondary" onClick={() => void logout()}><LogOut className="h-3.5 w-3.5" /> {t("Sign out")}</Button>
           </div>
         </div>
       </header>

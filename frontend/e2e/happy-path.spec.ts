@@ -90,7 +90,7 @@ test("upload → triage → conclusion → approval → verified PDF", async ({ 
   await ivan.getByTestId("reference-for").selectOption({ label: "scene_edited.jpg" });
   await ivan.getByTestId("file-input").setInputFiles(path.join(FIXTURES, "scene_original.jpg"));
   await ivan.getByTestId("upload-button").click();
-  await expect(ivan.getByTestId("upload-result")).toContainText("Ingested");
+  await expect(ivan.getByTestId("upload-result")).toContainText("matches the hash computed in your browser");
 
   // Accounts are mirrored from Keycloak on first login, so these users sign in first.
   const esha = await loginAs(browser, "esha.examiner");
@@ -166,6 +166,20 @@ test("upload → triage → conclusion → approval → verified PDF", async ({ 
   await expect(ivan.getByTestId("module-video.container").getByText("succeeded")).toBeVisible({ timeout: 120_000 });
   await expect(ivan.getByTestId("module-video.container").getByText("reencode_indicator")).toBeVisible();
   await expect(ivan.getByTestId("screening-headline")).toBeVisible();
+
+  // --- Bulk upload (FR-1.8): several files at once, each hashed and triaged ----------
+  await ivan.goto(caseUrl);
+  await ivan.getByRole("button", { name: "Add evidence" }).click();
+  await ivan.getByTestId("file-input").setInputFiles([path.join(FIXTURES, "scene_original.png"), path.join(FIXTURES, "tone.wav")]);
+  await ivan.getByTestId("upload-button").click();
+  await expect(ivan.getByTestId("upload-result")).toHaveCount(2, { timeout: 60_000 });
+  await expect(ivan.getByTestId("evidence-tone.wav")).toBeVisible();
+
+  // --- Malayalam labels for investigator screens (NFR-U4) --------------------------
+  await ivan.getByTestId("lang-toggle").click();
+  await expect(ivan.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "കേസുകൾ" })).toBeVisible();
+  await ivan.getByTestId("lang-toggle").click();
+  await expect(ivan.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Cases" })).toBeVisible();
 
   // --- Audit chain still verifies ------------------------------------------------
   await suku.goto("/admin");

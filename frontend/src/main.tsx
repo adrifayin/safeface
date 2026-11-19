@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import "./index.css";
 import { AuthGate, Home, Layout } from "@/components/Layout";
 import { userManager } from "@/lib/auth";
+import { LanguageProvider } from "@/lib/i18n";
 import { CasesPage } from "@/pages/CasesPage";
 import { CasePage } from "@/pages/CasePage";
 import { Workbench } from "@/pages/Workbench";
@@ -58,9 +59,11 @@ function App() {
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <LanguageProvider>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </LanguageProvider>
     </QueryClientProvider>
   </React.StrictMode>,
 );

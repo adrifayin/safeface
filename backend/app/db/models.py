@@ -338,6 +338,23 @@ class DisposalRequest(Base):
     result: Mapped[dict[str, Any]] = mapped_column(default=dict, nullable=False)
 
 
+class BenchmarkRun(Base):
+    """Phase 4: one validation run of a module on a labelled dataset."""
+
+    __tablename__ = "benchmark_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=_uuid)
+    module_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    dataset: Mapped[str] = mapped_column(String(255), nullable=False)
+    robustness: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="queued", nullable=False)
+    requested_by_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    requested_at: Mapped[datetime] = _ts()
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    results: Mapped[dict[str, Any]] = mapped_column(default=dict, nullable=False)
+    error: Mapped[str | None] = mapped_column(Text)
+
+
 # --- Model registry ----------------------------------------------------------
 
 

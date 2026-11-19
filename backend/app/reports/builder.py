@@ -40,7 +40,7 @@ from app.db.models import (
 )
 from app.modules.base import FAMILY_LABELS, FAMILY_ORDER, Family
 from app.modules.registry import all_modules
-from app.modules.weights import load_validation, validation_summary
+from app.modules.weights import all_validation, validation_summary
 from app.services.screening import screen_item
 from app.services.verification import verify_item
 
@@ -131,7 +131,7 @@ def collect(
                             .order_by(EvidenceItem.ingested_at)).scalars())
 
     modules = all_modules()
-    benchmarks = load_validation()
+    benchmarks = all_validation(db)
     sections = []
     environments: dict[str, dict[str, Any]] = {}
     all_final = True

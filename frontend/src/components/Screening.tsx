@@ -6,6 +6,7 @@
 import { AlertOctagon, HelpCircle, ShieldQuestion } from "lucide-react";
 import type { ScreeningResult } from "@/lib/types";
 import { Badge } from "./ui";
+import { useLang, useT } from "@/lib/i18n";
 
 const STYLE = {
   doubt_raised: { box: "border-red-300 bg-red-50 text-red-950", icon: AlertOctagon, tone: "bad" as const, short: "Doubt raised" },
@@ -16,14 +17,17 @@ const STYLE = {
 export function ScreeningBanner({ s, onJump }: { s: ScreeningResult; onJump?: (moduleId: string) => void }) {
   const st = STYLE[s.status];
   const Icon = st.icon;
+  const t = useT();
+  const { lang } = useLang();
   return (
     <div className={`rounded-md border-2 p-4 ${st.box}`} data-testid="screening-banner" role="status">
       <div className="flex items-start gap-3">
         <Icon className="mt-0.5 h-6 w-6 shrink-0" />
         <div className="min-w-0 flex-1 space-y-2">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-wide opacity-80">Preliminary automated screening</div>
-            <div className="text-lg font-semibold" data-testid="screening-headline">{s.headline}</div>
+            <div className="text-xs font-semibold uppercase tracking-wide opacity-80">{t("Preliminary automated screening")}</div>
+            <div className="text-lg font-semibold" data-testid="screening-headline">{t(s.status, s.headline)}</div>
+            {lang === "ml" && <div className="text-sm opacity-80">{s.headline}</div>}
           </div>
           {s.flags.length > 0 && (
             <ul className="list-disc space-y-0.5 pl-5 text-sm">
@@ -38,6 +42,7 @@ export function ScreeningBanner({ s, onJump }: { s: ScreeningResult; onJump?: (m
             <p className="text-sm">Detectors without a result: {s.detectors_without_result.join(", ")}.</p>
           )}
           {s.pending.length > 0 && <p className="text-sm">Still running: {s.pending.length} check(s); this result will update.</p>}
+          {lang === "ml" && <p className="border-t border-current/20 pt-2 text-sm leading-relaxed">{t("caveat")}</p>}
           <p className="border-t border-current/20 pt-2 text-xs leading-relaxed opacity-90" data-testid="screening-caveat">{s.caveat}</p>
         </div>
       </div>

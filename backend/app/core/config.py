@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     # --- Analysis -------------------------------------------------------------
     models_dir: str = "/models"
     work_dir: str = "/work"
+    datasets_dir: str = "/datasets"  # Phase 4 test sets, mounted read-only
     seed: int = 0
     # Working copies and figures/heatmaps are purged this long after the last analysis of an item
     # (agreed with the user: 7 minutes). The sealed original, hashes, scores and reports are never
