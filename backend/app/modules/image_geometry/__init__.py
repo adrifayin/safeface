@@ -85,6 +85,7 @@ class Geometry(ModuleBase):
     tier = 2
     default_params = {"mode": "perspective", "lines": [], "tolerance_deg": 2.0}  # noqa: RUF012
     headline = ("inconsistent_lines", None)
+    question = "edited"
     plain = 'Checks whether perspective lines or shadows drawn by the examiner agree.'
     limitations = (
         "Depends entirely on the examiner choosing lines that really are parallel (perspective) or really are "

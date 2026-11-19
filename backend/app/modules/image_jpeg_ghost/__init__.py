@@ -38,6 +38,7 @@ class JPEGGhost(ModuleBase):
     tier = 2
     default_params = {"q_min": 50, "q_max": 100, "q_step": 5, "block": 16, "max_side": 2048}  # noqa: RUF012
     headline = ("inconsistent_area_fraction", 0.05)
+    question = "edited"
     plain = 'Finds areas saved at a different JPEG quality from the rest.'
     limitations = (
         "Needs a JPEG compression history: uncompressed, PNG-only or heavily recompressed images show no ghosts. "

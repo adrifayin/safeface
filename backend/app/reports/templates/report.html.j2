@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>SafeFace report {{ case.case_no }} v{{ version }}</title>
+<title>SafeFace report {{ case.case_no }}{% if subject %} · {{ subject.original_filename }}{% endif %} v{{ version }}</title>
 <style>
   @page { size: A4; margin: 16mm 15mm 18mm 15mm;
-    @bottom-left { content: "SafeFace {{ app_version }} · Case {{ case.case_no }} · Report v{{ version }} ({{ status|upper }})"; font-size: 8pt; color: #555; }
+    @bottom-left { content: "SafeFace {{ app_version }} · Case {{ case.case_no }}{% if subject %} · Item {{ subject.original_filename|truncate(40) }}{% endif %} · Report v{{ version }} ({{ status|upper }})"; font-size: 8pt; color: #555; }
     @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 8pt; color: #555; } }
   body { font-family: "DejaVu Sans", sans-serif; font-size: 9.5pt; color: #111; line-height: 1.4; }
   h1 { font-size: 17pt; margin: 0 0 2pt; } h2 { font-size: 12.5pt; border-bottom: 1px solid #999; padding-bottom: 2pt; margin-top: 14pt; }
@@ -41,6 +41,7 @@
 {# ============================ PART 1: PLAIN-LANGUAGE SUMMARY ============================ #}
 <h1>Forensic examination — summary</h1>
 <div>Case {{ case.case_no }}{% if case.fir_no %} · FIR {{ case.fir_no }}{% endif %} · {{ case.crime_head }} · Report v{{ version }} · <strong>{{ status|upper }}</strong> · {{ generated_at }}</div>
+{% if subject %}<p><strong>Single-item report.</strong> This report covers only the questioned item <strong>{{ subject.original_filename }}</strong> (evidence ID <span class="mono">{{ subject.id }}</span>){% if evidence|length > 1 %} and the {{ evidence|length - 1 }} reference item(s) linked to it{% endif %}. Other items in the case are reported separately.</p>{% endif %}
 <p class="small">Part 1 explains the results in plain language. Part 2 (technical annex) contains the full method, parameters, versions and figures for court.</p>
 
 {% for sec in sections %}
@@ -55,9 +56,19 @@
 </div>
 
 <div class="box {{ 'bad' if sec.screening.status == 'doubt_raised' else ('warn' if sec.screening.status == 'incomplete' else '') }}">
-  <div class="big">2. Automated screening (preliminary) — {{ sec.screening.headline }}</div>
-  {% if sec.screening.flags %}<ul style="margin:2pt 0">{% for fl in sec.screening.flags %}<li>{{ fl.reason }}</li>{% endfor %}</ul>{% endif %}
-  <div class="small">{{ sec.screening.caveat }}</div>
+  <div class="big">2. Automatic check result — {{ sec.screening.headline }}</div>
+  <div>{{ sec.screening.answer_line }}{% if sec.screening.overall_likelihood is not none %} <strong>Likelihood of AI manipulation: {{ (sec.screening.overall_likelihood * 100)|round|int }}% ({{ sec.screening.overall_band }}, {{ sec.screening.overall_question }}).</strong>{% endif %}</div>
+  <table style="margin:4pt 0">
+    {% set labels = {"signs_found": "SIGNS FOUND", "no_signs": "No signs found", "partly_checked": "Partly checked", "not_checked": "Not checked"} %}
+    {% for q in sec.screening.questions %}
+    <tr><td style="width:55%"><strong>{{ q.question }}</strong>
+        {% if q.reasons %}<br><span class="small">{{ q.reasons|join("; ") }}</span>{% endif %}</td>
+      <td style="width:18%;text-align:center">{% if q.likelihood is not none %}<strong style="font-size:13pt">{{ (q.likelihood * 100)|round|int }}%</strong><br><span class="small">{{ q.likelihood_band }} · {{ q.likelihood_source }}</span>{% else %}<span class="small">no %</span>{% endif %}</td>
+      <td><span class="pill {{ 'flag' if q.answer == 'signs_found' else 'clear' }}">{{ labels[q.answer] }}</span>
+        {% if q.checks %}<br><span class="small">checked by: {{ q.checks|join(", ") }}</span>{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+  <div class="small"><strong>Percentages are detector estimates; they can be wrong in both directions and are not proof.</strong> {{ sec.screening.caveat }}</div>
 </div>
 
 <div class="box {{ 'ok' if sec.conclusion and sec.conclusion.approved_at else 'warn' }}">

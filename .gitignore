@@ -26,3 +26,25 @@ offline-bundle/
 # Phase 4 datasets are supplied locally, never committed
 datasets/*
 !datasets/README.md
+
+# Catch-all for env files anywhere (e.g. a future frontend/.env)
+.env
+.env.*
+!.env.example
+*.p12
+*.pfx
+
+# Python envs / test output
+.venv/
+venv/
+*.egg-info/
+.coverage
+htmlcov/
+*.log
+
+# Editor / OS / local tool settings
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+.claude/settings.local.json

@@ -35,6 +35,7 @@ class ResidualFFT(ModuleBase):
     tier = 2
     default_params = {"size": 1024}  # noqa: RUF012
     headline = ("peak_to_background", None)
+    question = "ai_generated"
     plain = 'Looks for repeating patterns that AI image generators often leave.'
     limitations = (
         "Interpretation needs training. JPEG's 8x8 grid, resizing, sharpening and screen captures also create "

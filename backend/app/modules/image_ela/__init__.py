@@ -39,6 +39,7 @@ class ErrorLevelAnalysis(ModuleBase):
     tier = 1
     default_params = {"quality": 90, "amplification": 15}  # noqa: RUF012
     headline = ("p99_error", None)
+    question = "edited"
     plain = 'Re-saves the photo and shows areas that react differently (edits can stand out).'
     limitations = (
         "ELA has a high false-positive rate. Edges, fine texture, saturated colours and areas of "

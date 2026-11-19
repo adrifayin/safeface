@@ -255,6 +255,7 @@ class ConclusionOut(Out):
 class ReportOut(Out):
     id: uuid.UUID
     case_id: uuid.UUID
+    evidence_id: uuid.UUID | None = None  # None = whole-case report
     version: int
     status: str
     pdf_sha256: str
@@ -262,6 +263,11 @@ class ReportOut(Out):
     generated_by_id: uuid.UUID
     signed_by: list[Any]
     generated_at: datetime
+
+
+class PerItemReportsOut(BaseModel):
+    generated: list[ReportOut]
+    refused: list[dict[str, Any]]
 
 
 # --- modules and registry ------------------------------------------------------

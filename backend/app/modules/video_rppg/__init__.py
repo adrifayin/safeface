@@ -71,6 +71,7 @@ class VideoRPPG(ModuleBase):
     required_weights = [faces.DETECTOR]  # noqa: RUF012
     default_params = {"fps": 15.0, "seconds": 20}  # noqa: RUF012
     headline = ("spatial_coherence", None)
+    question = "face_swap"
     plain = "EXPERIMENTAL: looks for a consistent pulse signal in the face's skin."
     limitations = (
         "EXPERIMENTAL — not validated for evidential use. High-quality deepfakes can inherit the pulse of the "

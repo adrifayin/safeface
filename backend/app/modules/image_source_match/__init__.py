@@ -67,6 +67,7 @@ class SourceMatch(ModuleBase):
         "min_inliers": 15, "change_threshold": 25,
     }
     headline = ("changed_area_fraction", 0.01)
+    question = "edited"
     plain = 'Lines the photo up with the original and shows what changed.'
     limitations = (
         "Needs the original or a near-original reference of the same scene. A single homography "

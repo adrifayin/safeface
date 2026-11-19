@@ -52,6 +52,9 @@ export function ScreeningBanner({ s, onJump }: { s: ScreeningResult; onJump?: (m
 
 export function ScreeningBadge({ s }: { s: ScreeningResult | undefined }) {
   if (!s) return null;
-  const st = STYLE[s.status];
-  return <Badge tone={st.tone} title={`${s.headline}. Preliminary automated screening, not a finding.`}>Screening: {st.short}</Badge>;
+  const found = s.questions?.filter((q) => q.answer === "signs_found").map((q) => q.short) ?? [];
+  const p = s.overall_likelihood !== null && s.overall_likelihood !== undefined ? ` · ${Math.round(s.overall_likelihood * 100)}%` : "";
+  const text = (found.length ? `⚠ Signs: ${found.join(", ")}` : s.status === "no_doubt_raised" ? "✓ No signs found" : "… Checks running / incomplete") + p;
+  const tone = found.length ? "bad" : s.status === "no_doubt_raised" ? "ok" : "warn";
+  return <Badge tone={tone} title={`${s.headline}. Automatic result — can be wrong; an examiner must confirm.`}>{text}</Badge>;
 }

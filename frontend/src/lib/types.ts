@@ -178,12 +178,19 @@ export interface Conclusion {
 export interface Report {
   id: string;
   case_id: string;
+  /** null = combined case report; otherwise the questioned item this report covers. */
+  evidence_id: string | null;
   version: number;
   status: "draft" | "final";
   pdf_sha256: string;
   evidence_hashes: { evidence_id: string; filename: string; sha256: string; md5: string; verified_at: string }[];
   generated_at: string;
   signed_by: { examiner: string; supervisor: string; approved_at: string }[];
+}
+
+export interface PerItemReports {
+  generated: Report[];
+  refused: { evidence_id: string; filename: string; failed_evidence: string[] }[];
 }
 
 export interface CustodyEntry {
@@ -234,6 +241,18 @@ export interface ScreeningResult {
   headline: string;
   flags: { module_id: string; check: string; reason: string; finding_id: string }[];
   checks_run: string[];
+  answer_line: string;
+  questions: {
+    key: "ai_generated" | "edited" | "face_swap" | "voice"; question: string; short: string;
+    answer: "signs_found" | "no_signs" | "partly_checked" | "not_checked";
+    checks_run: number; checks_flagged: number; reasons: string[]; checks: string[];
+    likelihood: number | null; likelihood_band: "low" | "medium" | "high" | null; likelihood_source: string | null;
+    detector_scores: { detector: string; module_id: string; likelihood: number }[];
+  }[];
+  missing_checks: string[];
+  overall_likelihood: number | null;
+  overall_band: "low" | "medium" | "high" | null;
+  overall_question: string | null;
   checks: {
     module_id: string; check: string; family: string; plain: string; triage_indicator: boolean;
     score_name: string | null; value: number | null; range: [number, number] | null; meaning: string;

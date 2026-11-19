@@ -39,6 +39,7 @@ class PhonemeViseme(ModuleBase):
     required_weights = [faces.DETECTOR, faces.LANDMARKS, *WHISPER_FILES]  # noqa: RUF012
     default_params = {"fps": 25.0, "seconds": 60, "closure_ratio": 0.6}  # noqa: RUF012
     headline = ("closure_failure_rate", 0.5)
+    question = "face_swap"
     plain = "Checks the lips close on 'm', 'b' and 'p' sounds, as real speech requires."
     limitations = (
         "Needs a visible, frontal, unobstructed mouth and clear speech from that person. Bilabial onsets are guessed "

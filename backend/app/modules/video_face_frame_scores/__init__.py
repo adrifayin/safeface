@@ -61,6 +61,7 @@ class FaceFrameScores(ModuleBase):
     required_weights = [faces.DETECTOR, "sbi"]  # noqa: RUF012
     default_params = {"fps": 1.0, "max_frames": 60}  # noqa: RUF012
     headline = ("max_face_score", 0.5)
+    question = "face_swap"
     plain = 'AI tool that looks for signs of a swapped or altered face.'
     limitations = (
         "TRIAGE INDICATOR ONLY. Face region only: manipulations elsewhere in the frame are not examined, and no "

@@ -144,8 +144,11 @@ class AnalysisModule(Protocol):
     triage_indicator: bool
 
     screening_core: bool
+    question: str
 
     def availability(self) -> Availability: ...
+
+    def question_for(self, reason: str) -> str: ...
 
     def screen(self, scores: dict[str, float | None], details: dict[str, Any]) -> str | None: ...
 
@@ -176,6 +179,12 @@ class ModuleBase:
     headline: tuple[str, float | None] | None = None
     # One plain-language sentence: what the check looks at (for officers and the report summary).
     plain: str = ""
+    # Which plain question this check helps answer: "ai_generated", "edited", "face_swap", "voice", or "" (none).
+    question: str = ""
+
+    def question_for(self, reason: str) -> str:
+        """Question a raised doubt belongs to (override when one check can answer several)."""
+        return self.question
 
     def screen(self, scores: dict[str, float | None], details: dict[str, Any]) -> str | None:
         """Preliminary screening rule: a plain reason if this finding raises a doubt, else None.

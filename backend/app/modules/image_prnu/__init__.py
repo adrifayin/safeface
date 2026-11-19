@@ -79,6 +79,7 @@ class PRNU(ModuleBase):
     requires_reference = True
     default_params = {"min_references": 20, "block": 128, "max_side": 2048}  # noqa: RUF012
     headline = ("pce", 60.0)
+    question = "edited"
     plain = "Matches the photo to a specific camera's sensor fingerprint."
     limitations = (
         "Needs at least 20 photos from the suspected camera at the same resolution and orientation (ideally flat, "

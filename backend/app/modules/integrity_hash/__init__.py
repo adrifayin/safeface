@@ -30,6 +30,7 @@ class IntegrityHash(ModuleBase):
             return "The analysed copy does not match the ingest hash (integrity failure)"
         return None
     headline = ("sha256_match", None)
+    question = ""  # shown in the integrity panel, not as a manipulation question
     plain = 'Is the file analysed exactly the file that was received? (1 = yes)'
     limitations = (
         "A matching hash proves only that the analysed file is bit-for-bit identical to the file "

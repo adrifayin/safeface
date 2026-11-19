@@ -61,6 +61,7 @@ class AVSync(ModuleBase):
     required_weights = [faces.DETECTOR, faces.LANDMARKS]  # noqa: RUF012
     default_params = {"fps": 15.0, "seconds": 60, "max_lag_ms": 500}  # noqa: RUF012
     headline = ("out_of_sync_fraction", 0.5)
+    question = "face_swap"
     plain = 'Checks whether lip movement matches the speech in time.'
     limitations = (
         "Needs a clearly visible, mostly frontal speaking face and audible speech from that person. Off-screen "

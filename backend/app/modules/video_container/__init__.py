@@ -19,7 +19,24 @@ from app.modules.image_metadata import AI_GENERATORS, EDITORS
 VIDEO_EDITORS = [*EDITORS, "premiere", "final cut", "davinci", "resolve", "capcut", "kinemaster", "vegas",
                            "filmora", "imovie", "handbrake", "shotcut", "openshot", "vn video"]
 VIDEO_AI = [*AI_GENERATORS, "deepfacelab", "faceswap", "roop", "facefusion", "synthesia", "heygen", "d-id",
-                            "sora", "pika", "kling", "luma", "hailuo", "wav2lip", "liveportrait", "veo"]
+                            "sora", "pika", "kling", "luma", "hailuo", "minimax", "wav2lip", "liveportrait", "veo",
+                            "jimeng", "seedance", "vidu", "hunyuan", "wan2", "runway"]
+
+
+def aigc_label(tags: dict[str, Any]) -> dict[str, str] | None:
+    """Implicit AI-content label in the 'AIGC' metadata tag (China GB 45438-2025, TC260 format).
+
+    Returns {producer, produce_id} when the label marks AI-generated content (Label == "1")."""
+    raw = next((v for k, v in tags.items() if k.lower() == "aigc"), None)
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except (TypeError, ValueError):
+        return {"producer": "unknown (unparsable AIGC tag)", "produce_id": ""}
+    if str(data.get("Label", "")).strip() != "1":
+        return None
+    return {"producer": str(data.get("ContentProducer") or "unknown"), "produce_id": str(data.get("ProduceID") or "")}
 # Encoder strings that indicate the file was (re-)encoded by a generic library rather than a camera.
 GENERIC_ENCODERS = ["lavf", "lavc", "libx264", "libx265", "x264", "x265", "ffmpeg", "gstreamer"]
 
@@ -36,7 +53,7 @@ def _frac(v: str | None) -> float | None:
 
 class VideoContainer(ModuleBase):
     id = "video.container"
-    version = "1.0.0"
+    version = "1.1.0"
     name = "Container and stream analysis"
     description = ("ffprobe and MediaInfo report of codecs, encoder and writing-application tags, frame rate, "
                    "timestamps and stream durations, with re-encoding and editing indicators.")
@@ -44,6 +61,7 @@ class VideoContainer(ModuleBase):
     media_types = {MediaType.VIDEO}  # noqa: RUF012
     tier = 1
     headline = ("anomaly_count", None)
+    question = "edited"
     plain = "Reads the video file's structure and the software that wrote it."
     limitations = (
         "Social-media and messaging platforms re-encode almost every video, so re-encoding indicators are "
@@ -55,7 +73,13 @@ class VideoContainer(ModuleBase):
         ok, reason = tools_available()
         return Availability(ok, reason)
 
+    def question_for(self, reason: str) -> str:
+        return "ai_generated" if "AI" in reason else "edited"
+
     def screen(self, scores: dict[str, float | None], details: dict[str, Any]) -> str | None:
+        if scores.get("aigc_label") == 1:
+            who = (details.get("aigc_label") or {}).get("producer", "an AI service")
+            return f"The file carries an AI-generated-content label written by {who} (AIGC metadata tag)"
         if scores.get("ai_tool_tag") == 1:
             return "Video tags name an AI video-generation or face-swap tool"
         if scores.get("editing_tool_tag") == 1:
@@ -80,7 +104,12 @@ class VideoContainer(ModuleBase):
                 if track.get(key):
                     tags.append(f"{key}={track[key]}")
         low = " ".join(tags).lower()
+        label = aigc_label(fmt.get("tags", {}))
         anomalies: list[dict[str, str]] = []
+        if label:
+            anomalies.append({"check": "aigc_label", "value": label["producer"],
+                              "explanation": "Metadata tag 'AIGC' with Label=1: the producing service declared the "
+                                             "content AI-generated (China GB 45438-2025 implicit label)."})
         editing = [t for t in VIDEO_EDITORS if t in low]
         ai = [t for t in VIDEO_AI if t in low]
         generic = [t for t in GENERIC_ENCODERS if t in low]
@@ -113,6 +142,8 @@ class VideoContainer(ModuleBase):
         return Finding(
             scores=[
                 Score("anomaly_count", float(len(anomalies)), None, "Number of observations listed (not a measure of manipulation)."),
+                Score("aigc_label", 1.0 if label else 0.0, (0, 1),
+                      "1 = an 'AIGC' metadata label declares the content AI-generated (e.g. MiniMax/Hailuo, Kling)."),
                 Score("ai_tool_tag", 1.0 if ai else 0.0, (0, 1), "1 = a tag names an AI video or face-swap tool."),
                 Score("editing_tool_tag", 1.0 if editing else 0.0, (0, 1), "1 = a tag names video-editing software."),
                 Score("reencode_indicator", 1.0 if generic else 0.0, (0, 1), "1 = encoded by a generic library (re-encoded)."),
@@ -121,7 +152,7 @@ class VideoContainer(ModuleBase):
                       "Difference between audio and video stream durations, seconds (null = one stream missing).", "s"),
             ],
             summary=summary, limitations=self.limitations,
-            details={"anomalies": anomalies, "format": fmt, "streams": probe.get("streams", []), "tags": tags,
+            details={"anomalies": anomalies, "aigc_label": label, "format": fmt, "streams": probe.get("streams", []), "tags": tags,
                      "mediainfo": mediainfo},
             provenance={"tools": {"ffprobe": run_tool(["ffprobe", "-version"], timeout=10).stdout.decode()[:60]}},
         )

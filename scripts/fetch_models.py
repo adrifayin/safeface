@@ -55,6 +55,8 @@ ITEMS = [
          "https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip", member="det_10g.onnx"),
     Item("insightface-2d106det", "insightface/buffalo_l/2d106det.onnx", "url-zip-member",
          "https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip", member="2d106det.onnx"),
+    Item("commfor-vit-s384", "commfor/model.safetensors", "url",
+         "https://huggingface.co/OwensLab/commfor-model-384/resolve/6076002bf0d9dd37537f965ee2f06f826c333b61/model.safetensors"),
     Item("whisper-small-model", "whisper/small/model.bin", "url",
          "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/model.bin"),
     Item("whisper-small-config", "whisper/small/config.json", "url",

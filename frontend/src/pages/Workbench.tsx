@@ -7,9 +7,9 @@
  * screen combines findings into a verdict.
  */
 import { useCallback, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ChevronDown, Play, RotateCcw } from "lucide-react";
+import { AlertTriangle, ChevronDown, FileText, Play, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api";
 import {
   CONCLUSION_SCALE, type CaseDetail, type Conclusion, type Evidence, type Finding, type FindingsResponse, type Job,
@@ -20,7 +20,7 @@ import { hasRole, useMe } from "@/components/Layout";
 import { Reveal } from "@/components/Reveal";
 import { ArtefactImage, EvidenceViewer, type Overlay } from "@/components/Viewer";
 import { PlotlyArtefact } from "@/components/PlotlyChart";
-import { ScreeningBanner } from "@/components/Screening";
+import { AnswerCard } from "@/components/Answer";
 import { IntegrityPanel } from "@/components/Integrity";
 import { ResultsSummary } from "@/components/ResultsSummary";
 import { MediaPlayer } from "@/components/MediaPlayer";
@@ -58,6 +58,11 @@ export function Workbench() {
   const notes = useQuery({ queryKey: ["notes", evidenceId], queryFn: () => api.get<Note[]>(`/evidence/${evidenceId}/notes`) });
   const run = useMutation({
     mutationFn: (moduleIds: string[]) => api.post<Job[]>(`/evidence/${evidenceId}/analyses`, { module_ids: moduleIds }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["findings", evidenceId] }),
+  });
+
+  const runMissing = useMutation({
+    mutationFn: () => api.post<Job[]>(`/evidence/${evidenceId}/analyses/missing`),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["findings", evidenceId] }),
   });
 
@@ -105,14 +110,26 @@ export function Workbench() {
       <PageHeader
         crumbs={[{ label: "Cases", to: "/" }, { label: caseNo, to: `/cases/${ev.case_id}` }, { label: ev.original_filename }]}
         title={ev.original_filename}
+        actions={ev.kind === "questioned" && hasRole(me, "examiner", "supervisor", "auditor") ? (
+          <Button asChild variant="outline" size="sm">
+            <Link to={`/cases/${ev.case_id}/report?item=${ev.id}`} data-testid="item-report-link"><FileText className="h-4 w-4" /> Report for this item</Link>
+          </Button>
+        ) : undefined}
         subtitle={<span className="flex flex-wrap items-center gap-2">SHA-256 <Hash value={ev.sha256} />
           {ev.last_verification && <Badge tone={ev.last_verification.ok ? "ok" : "bad"}>{ev.last_verification.ok ? "hash verified" : "HASH MISMATCH"}</Badge>}
           {busy > 0 && <Badge tone="info">{busy} analysis job(s) running…</Badge>}
         </span>}
       />
+      {screening.data && screening.data.missing_checks.length > 0 && hasRole(me, "investigator", "examiner") && (
+        <div className="mb-3 flex flex-wrap items-center gap-3 rounded-md border-2 border-blue-300 bg-blue-50 p-3 text-sm text-blue-950" data-testid="missing-checks">
+          <span className="flex-1"><strong>{screening.data.missing_checks.length} check(s) have not run on this item yet</strong> (it was uploaded before they were installed or updated). Run them to get a complete answer.</span>
+          <Button size="sm" onClick={() => runMissing.mutate()} disabled={runMissing.isPending} data-testid="run-missing">
+            {runMissing.isPending ? "Starting…" : "Run missing checks"}</Button>
+        </div>
+      )}
       {screening.data && (
         <div className="mb-3">
-          <ScreeningBanner s={screening.data} onJump={(id) => {
+          <AnswerCard s={screening.data} evidenceId={ev.id} onJump={(id) => {
             setTab("findings");
             setTimeout(() => document.getElementById(`module-${id}`)?.scrollIntoView({ behavior: "smooth" }), 50);
           }} />

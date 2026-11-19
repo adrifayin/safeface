@@ -58,6 +58,7 @@ class UnivFD(ModuleBase):
     required_weights = ["clip-vit-l14", "univfd-fc"]  # noqa: RUF012
     default_params = {"crop": 224}  # noqa: RUF012
     headline = ("probability_generated", 0.5)
+    question = "ai_generated"
     plain = 'AI tool that estimates whether the whole picture was made by AI.'
     limitations = (
         "TRIAGE INDICATOR ONLY. Trained on ProGAN images; accuracy degrades substantially on newer "

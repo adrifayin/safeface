@@ -18,7 +18,7 @@ from app.core.policy import Action, is_allowed
 from app.core.storage import get_store
 from app.db.models import EvidenceItem, FindingRow, Job
 from app.modules.base import FAMILY_LABELS, FAMILY_ORDER
-from app.services.analysis import create_jobs
+from app.services.analysis import create_jobs, missing_module_ids
 from app.services.screening import CAVEAT, screen_item
 
 router = APIRouter(tags=["analyses"])
@@ -50,6 +50,18 @@ def get_job(job_id: uuid.UUID, db: DB, me: Me) -> JobOut:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "job not found")
     load_evidence(db, me, job.evidence_id, Action.CASE_VIEW)
     return JobOut.model_validate(job)
+
+
+@router.post("/evidence/{evidence_id}/analyses/missing", response_model=list[JobOut],
+             status_code=status.HTTP_202_ACCEPTED)
+def queue_missing(evidence_id: uuid.UUID, db: DB, me: Me) -> list[JobOut]:
+    """Run every automatic check that has no result yet (new or upgraded checks, older uploads)."""
+    item = load_evidence(db, me, evidence_id, Action.ANALYSIS_TIER1)
+    ids = missing_module_ids(db, item)
+    if not ids:
+        return []
+    jobs = create_jobs(db, me.actor, me.id, item, ids, {}, [], {1})
+    return [JobOut.model_validate(j) for j in jobs]
 
 
 @router.get("/evidence/{evidence_id}/jobs", response_model=list[JobOut])
@@ -84,6 +96,7 @@ def get_screening(evidence_id: uuid.UUID, db: DB, me: Me) -> dict[str, Any]:
     """Preliminary automated screening for one item (see services/screening.py)."""
     item = load_evidence(db, me, evidence_id, Action.EVIDENCE_VIEW)
     result = screen_item(db, item)
+    result["missing_checks"] = missing_module_ids(db, item)
     audit.record(db, me.actor, "evidence.screening_viewed", "evidence", item.id,
                  {"status": result["status"], "flags": [f["module_id"] for f in result["flags"]]})
     return result

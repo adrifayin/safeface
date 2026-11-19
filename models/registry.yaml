@@ -159,3 +159,16 @@ weights:
     source: https://huggingface.co/Systran/faster-whisper-small (revision 536b066)
     validation:
       status: not yet validated on the SafeFace test set (Phase 4)
+
+  - name: commfor-vit-s384
+    module_id: image.aigen.commfor
+    version: commfor-model-384-6076002
+    path: commfor/model.safetensors
+    # sha256 = Hugging Face LFS oid of model.safetensors at commit 6076002bf0d9dd37537f965ee2f06f826c333b61.
+    # (The onnx-community ONNX export was rejected: its classifier head is untrained - zero bias, init-scale weights.)
+    sha256: b89f36275f3bf5e2b040eee36597a8f19db051bff9a473a9cf7b2466284fb387
+    licence: MIT (OwensLab / JeongsooP Community-Forensics; Park & Owens, CVPR 2025)
+    source: https://huggingface.co/OwensLab/commfor-model-384/resolve/6076002bf0d9dd37537f965ee2f06f826c333b61/model.safetensors
+    validation:
+      status: not yet validated on the SafeFace test set (Phase 4)
+      published: "Park & Owens, CVPR 2025 (trained on 4,803 generators)"

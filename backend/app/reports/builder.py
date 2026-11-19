@@ -1,10 +1,14 @@
-"""Build the case report.
+"""Build a report: either the whole case, or one questioned item.
 
-Before anything is rendered, every evidence item in the case is re-hashed from
-storage (FR-1.6). If any hash fails, no report is produced.
+A single-item report covers that questioned item plus the reference items
+linked to it (their hashes appear in the integrity table; references have no
+findings of their own).
 
-The report is FINAL only when every questioned item's latest conclusion has
-been approved by a supervisor; otherwise it is watermarked DRAFT.
+Before anything is rendered, every evidence item the report covers is re-hashed
+from storage (FR-1.6). If any hash fails, no report is produced.
+
+The report is FINAL only when every questioned item it covers has a latest
+conclusion approved by a supervisor; otherwise it is watermarked DRAFT.
 
 WeasyPrint is given a URL fetcher that refuses everything except inline
 ``data:`` URIs, so rendering can never reach the network.
@@ -93,28 +97,45 @@ def _user_name(db: Session, user_id: uuid.UUID | None) -> str:
     return f"{u.display_name} ({u.username})" if u else str(user_id)
 
 
+def scope_ids(db: Session, item: EvidenceItem) -> set[uuid.UUID]:
+    """The items a single-item report covers: the questioned item and its references."""
+    refs = db.execute(select(EvidenceReference.reference_id).where(
+        EvidenceReference.questioned_id == item.id)).scalars()
+    return {item.id, *refs}
+
+
+def _items(db: Session, case: Case, only: set[uuid.UUID] | None) -> list[EvidenceItem]:
+    q = select(EvidenceItem).where(EvidenceItem.case_id == case.id)
+    if only is not None:
+        q = q.where(EvidenceItem.id.in_(only))
+    return list(db.execute(q.order_by(EvidenceItem.ingested_at)).scalars())
+
+
+def hash_entry(item: EvidenceItem, verified_at: str, verified_ok: bool) -> dict[str, Any]:
+    return {
+        "evidence_id": str(item.id), "filename": item.original_filename, "kind": item.kind,
+        "media_type": item.media_type, "detected_mime": item.detected_mime,
+        "size_bytes": item.size_bytes, "sha256": item.sha256, "md5": item.md5,
+        "verified_at": verified_at, "verified_ok": verified_ok,
+        "ingested_at": iso(item.ingested_at), "source_url": item.source_url,
+        "source_platform": item.source_platform, "source_device": item.source_device,
+        "complainant": item.complainant, "collected_by": item.collected_by,
+        "collected_at": iso(item.collected_at) if item.collected_at else None,
+        "upload_method": item.upload_method,
+    }
+
+
 def verify_case(
-    db: Session, store: ObjectStore, case: Case, actor: str
+    db: Session, store: ObjectStore, case: Case, actor: str, only: set[uuid.UUID] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Re-hash every item in the case. Returns (evidence_hashes, failures)."""
-    items = list(db.execute(select(EvidenceItem).where(EvidenceItem.case_id == case.id)
-                            .order_by(EvidenceItem.ingested_at)).scalars())
+    """Re-hash every item in the case (or only ``only``). Returns (evidence_hashes, failures)."""
+    items = _items(db, case, only)
     evidence_hashes: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
     for item in items:
         rows = verify_item(db, store, item, actor, "pre-report")
         original = next(r for r in rows if r.target == "original")
-        entry = {
-            "evidence_id": str(item.id), "filename": item.original_filename, "kind": item.kind,
-            "media_type": item.media_type, "detected_mime": item.detected_mime,
-            "size_bytes": item.size_bytes, "sha256": item.sha256, "md5": item.md5,
-            "verified_at": iso(original.verified_at), "verified_ok": all(r.ok for r in rows),
-            "ingested_at": iso(item.ingested_at), "source_url": item.source_url,
-            "source_platform": item.source_platform, "source_device": item.source_device,
-            "complainant": item.complainant, "collected_by": item.collected_by,
-            "collected_at": iso(item.collected_at) if item.collected_at else None,
-            "upload_method": item.upload_method,
-        }
+        entry = hash_entry(item, iso(original.verified_at), all(r.ok for r in rows))
         evidence_hashes.append(entry)
         if not entry["verified_ok"]:
             failures.append(entry)
@@ -123,12 +144,14 @@ def verify_case(
 
 def collect(
     db: Session, store: ObjectStore, case: Case, actor: str, version: int,
-    evidence_hashes: list[dict[str, Any]],
+    evidence_hashes: list[dict[str, Any]], subject: EvidenceItem | None = None,
 ) -> dict[str, Any]:
-    """Gather everything the template needs. Call only after :func:`verify_case` passed."""
+    """Gather everything the template needs. Call only after :func:`verify_case` passed.
+
+    With ``subject`` the report covers that one questioned item (and its references).
+    """
     settings = get_settings()
-    items = list(db.execute(select(EvidenceItem).where(EvidenceItem.case_id == case.id)
-                            .order_by(EvidenceItem.ingested_at)).scalars())
+    items = _items(db, case, scope_ids(db, subject) if subject is not None else None)
 
     modules = all_modules()
     benchmarks = all_validation(db)
@@ -230,6 +253,7 @@ def collect(
 
     return {
         "case": case,
+        "subject": subject,
         "investigator": _user_name(db, case.created_by_id),
         "examiner": _user_name(db, case.assigned_examiner_id),
         "version": version,

@@ -43,3 +43,32 @@ def test_screening_endpoint(client: TestClient, edited_bytes: bytes) -> None:
     whole = client.get(f"/api/v1/cases/{case['id']}/screening", headers=auth("ivan")).json()
     assert whole["items"][ev["id"]]["status"] == "doubt_raised"
     assert client.get(f"/api/v1/evidence/{ev['id']}/screening", headers=auth("adam")).status_code == 404
+
+
+def test_plain_questions(client: TestClient, edited_bytes: bytes) -> None:
+    case = new_case(client)
+    ev = upload(client, case["id"], edited_bytes).json()["evidence"]
+    body = client.get(f"/api/v1/evidence/{ev['id']}/screening", headers=auth("esha")).json()
+    qs = {q["key"]: q for q in body["questions"]}
+    assert set(qs) == {"ai_generated", "edited", "face_swap"}  # no voice question for a photo
+    # "GIMP" software tag -> signs of editing; detectors not installed in tests -> not fully checked
+    assert qs["edited"]["answer"] == "signs_found" and qs["edited"]["reasons"]
+    assert qs["ai_generated"]["answer"] in ("not_checked", "partly_checked")
+    assert body["answer_line"].startswith("Signs found: edited")
+    for q in body["questions"]:
+        assert not VERDICT_WORDS.search(q["question"] + q["short"])
+
+
+def test_likelihood_and_missing_checks(client: TestClient, edited_bytes: bytes) -> None:
+    case = new_case(client)
+    ev = upload(client, case["id"], edited_bytes).json()["evidence"]
+    body = client.get(f"/api/v1/evidence/{ev['id']}/screening", headers=auth("esha")).json()
+    for q in body["questions"]:
+        assert "likelihood" in q and "detector_scores" in q
+        if q["likelihood"] is not None:
+            assert 0.0 <= q["likelihood"] <= 1.0 and q["likelihood_band"] in ("low", "medium", "high")
+    assert "overall_likelihood" in body
+    # everything that could run on ingest already ran: nothing missing, the endpoint queues nothing
+    assert body["missing_checks"] == []
+    r = client.post(f"/api/v1/evidence/{ev['id']}/analyses/missing", headers=auth("esha"))
+    assert r.status_code == 202 and r.json() == []

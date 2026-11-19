@@ -62,6 +62,7 @@ class AudioSpoof(ModuleBase):
     required_weights = ["aasist"]  # noqa: RUF012
     default_params = {"hop_seconds": 2.0, "max_seconds": 600}  # noqa: RUF012
     headline = ("segments_above_threshold", 0.25)
+    question = "voice"
     plain = 'AI tool that estimates whether the voice is synthetic or cloned.'
     limitations = (
         "TRIAGE INDICATOR ONLY. Trained on ASVspoof 2019 studio-quality English speech from older TTS and "

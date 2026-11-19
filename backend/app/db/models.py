@@ -22,7 +22,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -307,10 +307,18 @@ class Conclusion(Base):
 
 class Report(Base):
     __tablename__ = "reports"
-    __table_args__ = (UniqueConstraint("case_id", "version"),)
+    # Whole-case reports are versioned per case; single-item reports per evidence item.
+    __table_args__ = (
+        Index("uq_reports_case_version", "case_id", "version", unique=True,
+              postgresql_where=text("evidence_id IS NULL")),
+        Index("uq_reports_item_version", "evidence_id", "version", unique=True,
+              postgresql_where=text("evidence_id IS NOT NULL")),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=_uuid)
     case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cases.id"), nullable=False, index=True)
+    # NULL = whole-case report; otherwise the one questioned item this report covers.
+    evidence_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("evidence_items.id"), index=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False)  # draft | final
     pdf_storage_key: Mapped[str] = mapped_column(String(512), nullable=False)

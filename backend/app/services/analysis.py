@@ -106,6 +106,21 @@ def create_jobs(
     return jobs
 
 
+def missing_module_ids(session: Session, item: EvidenceItem) -> list[str]:
+    """Automatic checks that have no result for the current module version and are not queued.
+
+    Covers items uploaded before a check was installed or upgraded."""
+    from app.db.models import FindingRow
+
+    run, _ = triage_module_ids(item)
+    modules = all_modules()
+    have = {(f.module_id, f.module_version) for f in
+            session.execute(select(FindingRow).where(FindingRow.evidence_id == item.id)).scalars()}
+    busy = {j.module_id for j in session.execute(select(Job).where(Job.evidence_id == item.id)).scalars()
+            if j.status in (JobStatus.QUEUED, JobStatus.RUNNING)}
+    return [m for m in run if (m, modules[m].version) not in have and m not in busy]
+
+
 def triage_module_ids(item: EvidenceItem) -> tuple[list[str], list[str]]:
     """Tier 1 modules to run automatically on ingest: (to_run, skipped_unavailable)."""
     if item.kind == EvidenceKind.REFERENCE:

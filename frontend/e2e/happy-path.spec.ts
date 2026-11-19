@@ -142,15 +142,20 @@ test("upload → triage → conclusion → approval → verified PDF", async ({ 
   // --- Examiner exports the final report -----------------------------------------
   await esha.goto(`${caseUrl}/report`);
   await esha.getByTestId("generate-report").click();
-  await expect(esha.getByTestId("report-v1")).toContainText("final");
+  await expect(esha.getByTestId("report-case-v1")).toContainText("final");
   const download = esha.waitForEvent("download");
-  await esha.getByTestId("report-v1").getByRole("button", { name: "Download PDF" }).click();
+  await esha.getByTestId("report-case-v1").getByRole("button", { name: "Download PDF" }).click();
   const file = await (await download).path();
   const pdf = readFileSync(file);
   expect(pdf.subarray(0, 4).toString()).toBe("%PDF");
   await expect(esha.getByTestId("pdf-hash-check")).toContainText("matches the register");
   const pdfSha = createHash("sha256").update(pdf).digest("hex");
-  await expect(esha.getByTestId("report-v1")).toContainText(pdfSha);
+  await expect(esha.getByTestId("report-case-v1")).toContainText(pdfSha);
+
+  // --- Separate report for each evidence item ------------------------------------
+  await esha.getByTestId("generate-per-item").click();
+  await expect(esha.getByTestId("per-item-result")).toContainText("report(s) generated");
+  await expect(esha.locator('[data-testid^="report-"][data-testid$="-v1"]').filter({ hasText: "final" })).toHaveCount(2);
 
   // --- Video upload and analysis ---------------------------------------------------
   await ivan.goto(caseUrl);

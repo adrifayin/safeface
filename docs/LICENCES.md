@@ -12,6 +12,7 @@
 | TruFor weights | `image.trufor` | Same GRIP-UNINA licence | No | Downloaded from grip.unina.it. |
 | CLIP ViT-L/14 weights (OpenAI) | `image.aigen.univfd` | MIT | No (900 MB) | Architecture re-implemented in `app/modules/_vendor/clip_visual.py` with the MIT notice. |
 | UnivFD linear probe | `image.aigen.univfd` | MIT (WisconsinAIVision) | No | Commit `030495a`. |
+| Community Forensics ViT-S/16-384 weights | `image.aigen.commfor`, `video.aigen` | MIT (OwensLab, Park & Owens CVPR 2025) | No (87 MB safetensors) | HF commit `6076002`. Architecture re-implemented in `_vendor/vit_small.py` (no timm); safetensors read without pickle. The `onnx-community` ONNX export was rejected: untrained classifier head. |
 | NPR weights + reference code | `image.aigen.npr` | **No licence file** in the upstream repository (commit `781ced3`) — treat as *all rights reserved* | No | Our network is an independent re-implementation from the paper. Obtain the authors' permission before operational use. |
 | InsightFace `buffalo_l` (det_10g, w600k_r50) | `image.source_match` | InsightFace pretrained models: non-commercial research only | No | Code (`insightface` package) is MIT; the models are not. |
 | SBI weights (FF++ c23) | `video.face_frame_scores`, `video.temporal` | SBI licence: **academic / non-profit non-commercial research only** | No | Official checkpoint from the authors' Google Drive. |

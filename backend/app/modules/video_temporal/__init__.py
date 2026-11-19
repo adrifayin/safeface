@@ -46,6 +46,7 @@ class VideoTemporal(ModuleBase):
     required_weights = [faces.DETECTOR, faces.RECOGNISER]  # noqa: RUF012
     default_params = {"fps": 5.0, "seconds": 60, "dip_threshold": 0.5}  # noqa: RUF012
     headline = ("identity_dips", None)
+    question = "face_swap"
     plain = 'Checks whether the face stays the same person from frame to frame.'
     limitations = (
         "TRIAGE INDICATOR ONLY. Camera cuts, a second person, fast head turns, occlusion, motion blur and heavy "

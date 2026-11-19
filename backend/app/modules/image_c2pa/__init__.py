@@ -13,7 +13,7 @@ import shutil
 from typing import Any
 
 from app.modules._common.imaging import run_tool
-from app.modules.base import Availability, Family, Finding, ModuleBase, Score, WorkingCopy
+from app.modules.base import Availability, Family, Finding, MediaType, ModuleBase, Score, WorkingCopy
 
 NO_MANIFEST_MARKERS = ("no claim found", "manifestnotfound", "no manifest", "jumbfnotfound",
                        "manifest not found", "no c2pa")
@@ -42,7 +42,7 @@ def _find_ai_declaration(obj: Any) -> bool:
 
 class C2PA(ModuleBase):
     id = "image.c2pa"
-    version = "1.0.0"
+    version = "1.1.0"
     name = "C2PA Content Credentials"
     description = (
         "c2patool reads any embedded C2PA manifest store, validates the claim signature and "
@@ -50,14 +50,21 @@ class C2PA(ModuleBase):
     )
     family = Family.PROVENANCE
     tier = 1
+    media_types = {MediaType.IMAGE, MediaType.VIDEO, MediaType.AUDIO}  # noqa: RUF012
+
+    def question_for(self, reason: str) -> str:
+        return "ai_generated" if "AI" in reason else "edited"
 
     def screen(self, scores: dict[str, float | None], details: dict[str, Any]) -> str | None:
         if scores.get("ai_generation_declared") == 1:
-            return "C2PA Content Credentials declare the content as AI-generated"
+            who = (details.get("signature_info") or {}).get("issuer") or "the signer"
+            ok = "valid signature" if scores.get("signature_valid") == 1 else "signature NOT valid"
+            return f"Signed Content Credentials (C2PA, issuer: {who}, {ok}) declare the content AI-generated"
         if scores.get("manifest_present") == 1 and scores.get("signature_valid") == 0:
             return "C2PA manifest present but its signature or hashes do not validate"
         return None
     headline = ("manifest_present", None)
+    question = "edited"
     plain = "Checks for a signed digital 'content credential' and what it declares."
     limitations = (
         "Most image tools, and almost all abusive or 'nudify' tools, add no C2PA provenance, and "

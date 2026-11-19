@@ -81,6 +81,7 @@ class TruFor(ModuleBase):
     required_weights = ["trufor-src", "trufor"]  # noqa: RUF012
     default_params = {"max_pixels": 12_000_000}  # noqa: RUF012
     headline = ("integrity_score", 0.5)
+    question = "edited"
     plain = 'AI tool that marks where a photo may have been edited (0 = clean, 1 = edited).'
     limitations = (
         "Weaker on heavily recompressed, resized or screenshotted images (e.g. after messaging-app "

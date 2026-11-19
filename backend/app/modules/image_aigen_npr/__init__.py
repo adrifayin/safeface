@@ -58,6 +58,7 @@ class NPR(ModuleBase):
     required_weights = ["npr"]  # noqa: RUF012
     default_params = {"max_side": 1024}  # noqa: RUF012
     headline = ("probability_generated", 0.5)
+    question = "ai_generated"
     plain = 'Second, independent AI-generation test based on pixel patterns.'
     limitations = (
         "TRIAGE INDICATOR ONLY. Trained on ProGAN (4-class) images; it responds to up-sampling "
